@@ -1,8 +1,11 @@
-﻿using Intuit.QuickBase.Client;
+﻿using DCElectricWebAPI.Models;
+using Intuit.QuickBase.Client;
+using Microsoft.Extensions.Options;
+using System.Configuration;
 
 namespace DCElectricWebAPI.Modules
 {
-    public class QuickBaseConnector
+    public class QuickBaseConnector  
     {
 
         //class-wide variables
@@ -11,14 +14,21 @@ namespace DCElectricWebAPI.Modules
         static Intuit.QuickBase.Client.IQApplication appJL = null;
         static Intuit.QuickBase.Client.IQApplication appSafe = null;
 
+        IOptions<QuickBaseSettings>_settings;
+
+        public QuickBaseConnector(IOptions<QuickBaseSettings> settings)
+        {
+            _settings = settings;
+        }
+
+
         public  Intuit.QuickBase.Client.IQApplication getQBApp(int intApp) //Logs into Quickbase and gets app
         {
             //variables
-            string strDomain = "dcelectricgroup.quickbase.com";
-            string strToken = "***REMOVED***"; //Assigned in db ***REMOVED***
-            string strJlToken = "***REMOVED***"; //assigned in Quickbase here: https://dcelectricgroup.quickbase.com/db/bkykszyj4?a=GetAppDevKey
-            string strSafeToken = "***REMOVED***";
-
+            string strDomain = _settings.Value.domain;
+            string strToken = _settings.Value.token;
+            string strJlToken = _settings.Value.jltoken; //assigned in Quickbase here: https://dcelectricgroup.quickbase.com/db/bkykszyj4?a=GetAppDevKey
+            string strSafeToken = _settings.Value.safetoken;  
 
 
 
@@ -28,22 +38,22 @@ namespace DCElectricWebAPI.Modules
             string strApSafeId = "";
 
 
-            string strAccount = "***REMOVED***";
-            string strPW = "***REMOVED***";
+            string strAccount = _settings.Value.account;
+            string strPW = _settings.Value.password;
+
             //Log in and get app
             try
             {
                 var client = Intuit.QuickBase.Client.QuickBase.Login(strAccount, strPW, strDomain);
 
-                //strApSlId = "bm2k3zg85"; //test app id
-                //strApTsId = "bm2k37pgt"; // test app id
-                //strApJlId = "bm2isqezf"; // test app id
-                //strApSafeId = "bm2k35gyj"; //test app id
-                strApSlId = "bjrvqd33c"; //Sl app id
-                strApTsId = "bhrneweey"; // TS app id
-                strApJlId = "bkykszyj4"; //JL app id
 
-                strApSafeId = "bk2wutv6x"; //Safety app id
+                var apps = _settings.Value.apps;
+
+                strApSlId = apps.streetlights;//Sl app id
+                strApTsId =apps.ts; // TS app id
+                strApJlId = apps.jobs; //JL app id
+                strApSafeId =apps.safety; //Safety app id
+
                 switch (intApp)
                 {
                     case 0:

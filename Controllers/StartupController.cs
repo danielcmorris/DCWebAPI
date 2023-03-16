@@ -1,7 +1,10 @@
-﻿using DCElectricWebAPI.Modules;
+﻿using DCElectricWebAPI.Models;
+using DCElectricWebAPI.Modules;
 using Intuit.QuickBase.Client;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using System.Configuration;
 using System.Data;
 
 namespace DCElectricWebAPI.Controllers
@@ -10,6 +13,14 @@ namespace DCElectricWebAPI.Controllers
     [ApiController]
     public class StartupController : ControllerBase
     {
+        IOptions<QuickBaseSettings> _settings;
+
+
+        public StartupController(IOptions<QuickBaseSettings> options) {
+
+            _settings = options;
+
+        }
 
         // appJL = getQBApp(2)
         [HttpGet]
@@ -21,9 +32,11 @@ namespace DCElectricWebAPI.Controllers
             string strTableId = "_DBID_JOBS";
             int intDtSize = 0;
             int intCtr = 0;
+
+
           //  DataTable dtJobs = dsJobs.Tables["Jobs_List"];
 
-            var qbc = new QuickBaseConnector();
+            var qbc = new QuickBaseConnector(_settings);
             var appJL = qbc.getQBApp(2);
             Dictionary<string, Intuit.QuickBase.Client.IQTable> dictTables = appJL.GetTables();
             intDtSize = dictTables.Count;
