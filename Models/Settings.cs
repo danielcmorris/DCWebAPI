@@ -19,4 +19,9 @@
         public string ts { get; set; }
    
     }
+    public class Connections
+    {
+        public string DefaultConnection { get; set; }
+    
+    }
 }
