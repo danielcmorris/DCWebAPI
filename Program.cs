@@ -32,7 +32,9 @@ builder.Services.AddCors(options =>
     {
         builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
         // You can further restrict origins if needed:
-          builder.WithOrigins("http://localhost:4200");
+        builder.WithOrigins("http://localhost:4200");
+        builder.WithOrigins("https://dcelectricgroup.net");
+        builder.WithOrigins("https://www.dcelectricgroup.net");
     });
 });
 
