@@ -7,13 +7,74 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="ABCpdf" Version="12.3.0.2" />
+    <PackageReference Include="Google.Apis.Auth" Version="1.61.0" />
+    <PackageReference Include="Google.Cloud.Storage.V1" Version="4.6.0" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.1.1" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3" />
     <PackageReference Include="System.Configuration.ConfigurationManager" Version="7.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="6.32.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\QuickBase-C-Sharp-SDK\Intuit.QuickBase.Client\Intuit.QuickBase.Client.csproj" />
     <ProjectReference Include="..\QuickBase-C-Sharp-SDK\Intuit.QuickBase.Core\Intuit.QuickBase.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="NewFolder\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <NativeLibs Remove="Modules\FileModule.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <NativeLibs Remove="Controllers\FixtureInvoiceController.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <NativeLibs Remove="Modules\PDFModule.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <NativeLibs Remove="Controllers\AppController.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <NativeLibs Remove="Models\QuickBaseLibrary.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <NativeLibs Remove="Controllers\TablesController.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <NativeLibs Remove="Controllers\QueryController.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <NativeLibs Remove="Controllers\LoginController.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <NativeLibs Remove="Modules\SecurityModule.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <NativeLibs Remove="Models\User.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <NativeLibs Remove="Models\LoginCredentials.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <NativeLibs Remove="Models\Auth0Config.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <NativeLibs Remove="Models\Auth0AccessToken.cs" />
   </ItemGroup>
 
 </Project>

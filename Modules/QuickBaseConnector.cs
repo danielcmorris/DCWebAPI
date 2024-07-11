@@ -1,19 +1,27 @@
 ﻿using DCElectricWebAPI.Models;
-using Intuit.QuickBase.Client;
 using Microsoft.Extensions.Options;
-using System.Configuration;
+using Newtonsoft.Json.Linq;
+using System.Text.Json.Nodes;
+using System.Text;
+using static DCElectricWebAPI.Models.QuickBaseLibrary;
 
 namespace DCElectricWebAPI.Modules
 {
     public class QuickBaseConnector  
     {
+        string url = "https://api.quickbase.com";
+        string slToken = "***REMOVED***";
+        string domain = "dcelectricgroup.quickbase.com";
+    
+ 
+
 
         //class-wide variables
+        static Intuit.QuickBase.Client.IQApplication appSafe = null;
         static Intuit.QuickBase.Client.IQApplication appSL = null;
         static Intuit.QuickBase.Client.IQApplication appTS = null;
         static Intuit.QuickBase.Client.IQApplication appJL = null;
-        static Intuit.QuickBase.Client.IQApplication appSafe = null;
-
+ 
         IOptions<QuickBaseSettings>_settings;
 
         public QuickBaseConnector(IOptions<QuickBaseSettings> settings)
@@ -21,8 +29,123 @@ namespace DCElectricWebAPI.Modules
             _settings = settings;
         }
 
+        
 
-        public  Intuit.QuickBase.Client.IQApplication getQBApp(int intApp) //Logs into Quickbase and gets app
+        public async Task<QBDatabase?> GetApp(string appid)
+        {
+
+            using (var client = new HttpClient { BaseAddress = new Uri(url) })
+            {
+                var request = new HttpRequestMessage()
+                {
+                    RequestUri = new Uri(url + "/v1/apps/" + appid),
+                    Method = HttpMethod.Get,
+                };
+
+                request.Headers.Add("Authorization", "QB-USER-TOKEN "+ slToken);
+                request.Headers.Add("Qb-Realm-Hostname", domain);
+                HttpResponseMessage response = await client.SendAsync(request);
+                if (response.IsSuccessStatusCode)
+                {
+         
+                    string responseContent = await response.Content.ReadAsStringAsync();
+                    QBDatabase? retval = Newtonsoft.Json.JsonConvert.DeserializeObject<QBDatabase>(responseContent);                     
+                    return retval;
+                }
+                else
+                {
+                    Console.WriteLine($"API request failed with status code: {response.StatusCode}");
+                    throw new Exception();
+                }
+
+             
+            }
+ 
+
+        }
+        public async Task<List<QBTable>?> GetTables(string appId)
+        {
+            using (var client = new HttpClient { BaseAddress = new Uri(url) })
+            {
+                var request = new HttpRequestMessage()
+                {
+                    RequestUri = new Uri(url + "/v1/tables?appId=" + appId),
+                    Method = HttpMethod.Get,
+                };
+
+                request.Headers.Add("Authorization", "QB-USER-TOKEN " + slToken);
+                request.Headers.Add("Qb-Realm-Hostname", domain);
+                HttpResponseMessage response = await client.SendAsync(request);
+                if (response.IsSuccessStatusCode)
+                {
+
+                    string responseContent = await response.Content.ReadAsStringAsync();
+                    List<QBTable>? retval = Newtonsoft.Json.JsonConvert.DeserializeObject<List<QBTable>>(responseContent);
+                    return retval;
+                }
+                else
+                {
+                    Console.WriteLine($"API request failed with status code: {response.StatusCode}");
+                    throw new Exception();
+                }
+
+
+            }
+
+        }
+
+        public async Task<QBResultSet?> Query(QBQuery query)
+        {
+            using (var client = new HttpClient { BaseAddress = new Uri(url) })
+            {
+                //form "postable object" if that makes any sense
+                var stringObject = Newtonsoft.Json.JsonConvert.SerializeObject(query);
+
+                var content = new StringContent(stringObject.ToString(), Encoding.UTF8, "application/json");
+
+
+                var request = new HttpRequestMessage()
+                {
+                    RequestUri = new Uri(url + "/v1/records/query"),
+                    Method = HttpMethod.Post,
+                    Content = content
+                };
+
+                request.Headers.Add("Authorization", "QB-USER-TOKEN " + slToken);
+                request.Headers.Add("Qb-Realm-Hostname", domain);
+                HttpResponseMessage response = await client.SendAsync(request);
+                if (response.IsSuccessStatusCode)
+                {
+
+                    string responseContent = await response.Content.ReadAsStringAsync();
+                   QBResultSet? retval = Newtonsoft.Json.JsonConvert.DeserializeObject<QBResultSet>(responseContent);
+                    return retval;
+                }
+                else
+                {
+                    Console.WriteLine($"API request failed with status code: {response.StatusCode}");
+                    throw new Exception();
+                }
+
+
+            }
+
+        }
+
+
+        //public async Task<Type> convertCustomerTable(QBResultSet retval)
+        //{
+
+        //    foreach(var f in retval.fields  )
+        //    {
+        //        var fieldName = f.label.Replace(" ", "").Replace("#", "");
+
+        //    }
+        //}
+
+
+
+        public Intuit.QuickBase.Client.IQApplication getQBApp(int intApp) //Logs into Quickbase and gets app
         {
             //variables
             string strDomain = _settings.Value.domain;

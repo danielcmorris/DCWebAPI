@@ -1,11 +1,8 @@
 ﻿using DCElectricWebAPI.Models;
 using DCElectricWebAPI.Modules;
 using Intuit.QuickBase.Client;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using System.Configuration;
-using System.Data;
 
 namespace DCElectricWebAPI.Controllers
 {
