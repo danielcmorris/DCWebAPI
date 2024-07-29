@@ -9,6 +9,11 @@
         public string WorkPhone { get; set; }
         public string HomePhone { get; set; }
         public string CellPhone { get; set; }
+        public string UserGroup { get; set; }
+        public string CustomPermissions { get; set; }
+        public int OfficeId { get; set; }
+        public string UserName { get; set; }
+        public string SessionId { get; set; }
         public string Email { get; set; }
         public string UserLevel { get; set; } = "User";
         public string Password { get; set; } = "";

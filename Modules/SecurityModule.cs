@@ -1,14 +1,11 @@
 ﻿
 using DCElectricWebAPI.Models;
 using DCElectricWebAPI.Modules;
-using Microsoft.Data.SqlClient;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Data;
-using System.Diagnostics;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
-using System.Text;
 
 namespace DCElectricWebAPI.Moduiles
 {
@@ -42,11 +39,11 @@ namespace DCElectricWebAPI.Moduiles
         }
 
 
- /// <summary>
- /// Check to see if user is in current SQL Database.  This simply checks to see if they are an existing active user.  All passwords are held by Auth0
- /// </summary>
- /// <param name="username"></param>
- /// <returns></returns>
+        /// <summary>
+        /// Check to see if user is in current SQL Database.  This simply checks to see if they are an existing active user.  All passwords are held by Auth0
+        /// </summary>
+        /// <param name="username"></param>
+        /// <returns></returns>
         public string CheckLogin(string username)
         {
             string sql = "strpLogin '" + username + "';";
@@ -69,7 +66,7 @@ namespace DCElectricWebAPI.Moduiles
                     currentUser.UserGroup = (string)dr["Group"];
                     currentUser.CustomPermissions = (string)dr["CustomPermissions"] ?? "";
                     currentUser.UserLevel = (string)dr["Level"] ?? "";
-    
+
                     return "SUCCESS";
 
 
@@ -81,7 +78,7 @@ namespace DCElectricWebAPI.Moduiles
             }
             else
             {
-                return "ERROR: Stored Procedure Failed"; 
+                return "ERROR: Stored Procedure Failed";
             }
 
 
@@ -116,7 +113,7 @@ namespace DCElectricWebAPI.Moduiles
 
             client.Headers.Add(HttpRequestHeader.ContentType, "application/json");
             string url = "https://dcelectric.us.auth0.com/oauth/token/";
-            string responsedata ="";
+            string responsedata = "";
             try
             {
                 responsedata = client.UploadString(new Uri(url), "POST", json);
@@ -132,8 +129,8 @@ namespace DCElectricWebAPI.Moduiles
             }
             catch (Exception e)
             {
-                var retval = new Auth0AccessToken() { id_token =e.Message};
-                 
+                var retval = new Auth0AccessToken() { id_token = e.Message };
+
                 this.tokens = retval;
                 return retval;
 
@@ -338,7 +335,7 @@ namespace DCElectricWebAPI.Moduiles
 
         }
 
-         
+
     }
 
     public class Auth0User
