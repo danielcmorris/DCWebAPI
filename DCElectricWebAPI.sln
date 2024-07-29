@@ -4,10 +4,14 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 17.5.33424.131
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DCElectricWebAPI", "DCElectricWebAPI.csproj", "{FC2E9B07-52B5-43F1-9162-FA9763C9A7AE}"
+	ProjectSection(ProjectDependencies) = postProject
+		{72AE7ED2-1321-499E-8E0E-ECFD91B8C850} = {72AE7ED2-1321-499E-8E0E-ECFD91B8C850}
+		{F25380B0-B55A-4567-941E-B938723F6E07} = {F25380B0-B55A-4567-941E-B938723F6E07}
+	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Intuit.QuickBase.Client", "..\QuickBase-C-Sharp-SDK\Intuit.QuickBase.Client\Intuit.QuickBase.Client.csproj", "{F25380B0-B55A-4567-941E-B938723F6E07}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Intuit.QuickBase.Client", "..\QuickBase-C-Sharp-SDK2\Intuit.QuickBase.Client\Intuit.QuickBase.Client.csproj", "{F25380B0-B55A-4567-941E-B938723F6E07}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Intuit.QuickBase.Core", "..\QuickBase-C-Sharp-SDK\Intuit.QuickBase.Core\Intuit.QuickBase.Core.csproj", "{72AE7ED2-1321-499E-8E0E-ECFD91B8C850}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Intuit.QuickBase.Core", "..\QuickBase-C-Sharp-SDK2\Intuit.QuickBase.Core\Intuit.QuickBase.Core.csproj", "{72AE7ED2-1321-499E-8E0E-ECFD91B8C850}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
