@@ -1,4 +1,5 @@
 ﻿using DCElectricWebAPI.Models;
+using Intuit.QuickBase.Core;
 
 namespace DCElectricWebAPI.Modules
 {
@@ -6,17 +7,27 @@ namespace DCElectricWebAPI.Modules
     {
         public bool Secured = true;
         private string SessionID;
-        private int UserID;
+        private User user;
 
         public UserModule(string sid)
         {
             SessionID = sid.Replace("Bearer ","") ;
             var dl = new DataLayerBase();
-            UserID= dl.RunSQL($"SELECT ISNULL(UserID,0) FROM  [dbo].[fnSecurity_UserBySessionId]('{SessionID}');");
-            Secured = UserID>0?true:false; 
+            user = GetUserBySessionID(SessionID);
+
+            
+            Secured = user.UserId>0?true:false; 
              
         }
 
-        
+        private User GetUserBySessionID(string sid)
+        {
+            string sql = $"SELECT * FROM  [dbo].[fnSecurity_UserBySessionId]('{SessionID}');";
+            using (var dl = new DataLayerBase())
+            {
+                var userSet = dl.Query<User>(sql);
+                return userSet.First();
+            };
+        }
     }
 }
