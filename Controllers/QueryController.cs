@@ -31,7 +31,7 @@ namespace DCElectricWebAPI.Controllers
                     var name = field.label.Replace(" ", "").Replace("#", "").ToLower();
                     var value = dr[field.id.ToString()]["value"].ToString();
 
-                    if (name == "customername") jo.customerName = value;
+                    if (name == "customername") jo.CustomerName = value;
 
                 }
 
@@ -46,9 +46,9 @@ namespace DCElectricWebAPI.Controllers
     }
 
 
-    public class Customer
-    {
-        public string customerName { get; set; }
-    }
+    //public class Customer
+    //{
+    //    public string customerName { get; set; }
+    //}
 
 }
