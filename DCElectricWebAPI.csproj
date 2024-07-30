@@ -7,16 +7,20 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ABCpdf" Version="12.5.1" />
+    <PackageReference Include="ABCpdf" Version="13.1.3" />
     <PackageReference Include="Dapper" Version="2.1.35" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3" />
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="7.0.0" />
+    <PackageReference Include="Google.Apis.Storage.v1" Version="1.68.0.3474" />
+    <PackageReference Include="Google.Cloud.Storage.V1" Version="4.10.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.0" />
     <PackageReference Include="System.Data.SqlClient" Version="4.8.6" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\QuickBase-C-Sharp-SDK\Intuit.QuickBase.Client\Intuit.QuickBase.Client.csproj" />
-    <ProjectReference Include="..\QuickBase-C-Sharp-SDK\Intuit.QuickBase.Core\Intuit.QuickBase.Core.csproj" />
+    <ProjectReference Include="..\QuickBase-C-Sharp-SDK2\Intuit.QuickBase.Client\Intuit.QuickBase.Client.csproj" />
+    <ProjectReference Include="..\QuickBase-C-Sharp-SDK2\Intuit.QuickBase.Core\Intuit.QuickBase.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
