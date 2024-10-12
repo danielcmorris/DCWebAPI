@@ -1,4 +1,5 @@
 using DCElectricWebAPI.Models;
+using DCElectricWebAPI.Modules;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,10 +15,11 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 builder.Services.Configure<QuickBaseSettings>(
    builder.Configuration.GetSection("quickbase"));
-
+builder.Services.AddHttpClient();
 builder.Services.Configure<Connections>(builder.Configuration.GetSection("ConnectionStrings"));
 builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<Connections>>().Value);
- 
+// Register AzureBlobService in DI
+builder.Services.AddSingleton<AzureBlobService>();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
