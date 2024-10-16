@@ -132,7 +132,7 @@ public class ReportsController : ControllerBase
         try
         {
             string sql = $@"
-                            SELECT ReportId, CustomerName, StartDate, EndDate, CreatedBy, Status, ReportName, BlobURL, CreatedAt
+                            SELECT ReportId, CustomerName, StartDate, EndDate, CreatedBy, Status, ReportName, BlobURL, CreatedAt, ModifiedOn
                             FROM Reports
                             ORDER BY CreatedAt DESC";
 
