@@ -10,12 +10,13 @@ public class AzureBlobService
     private readonly BlobServiceClient _blobServiceClient;
     private readonly string _containerName;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<AzureBlobService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the AzureBlobService class.
     /// Reads the connection string and container name from the web.config.
     /// </summary>
-    public AzureBlobService(IConfiguration configuration)
+    public AzureBlobService(IConfiguration configuration, ILogger<AzureBlobService> logger)
     {
         _configuration = configuration;
         // Get the Azure Blob Storage connection string from web.config
@@ -26,6 +27,7 @@ public class AzureBlobService
 
         // Create a BlobServiceClient object using the connection string
         _blobServiceClient = new BlobServiceClient(connectionString);
+        _logger = logger;   
     }
 
     /// <summary>
@@ -36,12 +38,13 @@ public class AzureBlobService
     /// <param name="folderName">The optional folder name to prepend to the blob name.</param>
     /// <param name="blobName">The name of the blob (file) in Azure storage.</param>
 
-    public async Task UploadFileAsync(byte[] fileBytes, string blobName, string folderName = null, string containerName = null)
+    public async Task<string> UploadFileAsync(byte[] fileBytes, string blobName, string folderName = null, string containerName = null)
     {
         if (string.IsNullOrEmpty(containerName))
         {
-            containerName = _containerName;
+            containerName = _containerName;  // Default container name if none is provided
         }
+
         // Get a reference to the container
         BlobContainerClient containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
 
@@ -53,7 +56,7 @@ public class AzureBlobService
         {
             blobName = $"{folderName.TrimEnd('/')}/{blobName}";
         }
-        else if (!string.IsNullOrEmpty(_configuration["AzureBlobStorageFolderName"])) // If a folder name is provided, prepend it to the blob name
+        else if (!string.IsNullOrEmpty(_configuration["AzureBlobStorageFolderName"])) // If a folder is provided in configuration
         {
             blobName = $"{_configuration["AzureBlobStorageFolderName"].TrimEnd('/')}/{blobName}";
         }
@@ -66,7 +69,11 @@ public class AzureBlobService
         {
             await blobClient.UploadAsync(memoryStream, overwrite: true);
         }
+
+        // Return the URI (Blob URL)
+        return blobClient.Uri.ToString();
     }
+
 
     /// <summary>
     /// Gets all files (blobs) from a specific Azure Blob container or folder with their names, last modified date, and SAS URL.

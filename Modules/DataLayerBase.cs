@@ -70,10 +70,28 @@ namespace DCElectricWebAPI.Modules
         {
             return this.Connection.Query<T>(sql, parameters, transaction, buffered.Value, timeout, commandType);
         }
+        public async Task<IEnumerable<T>> QueryAsync<T>(string sql, object parameters = null, IDbTransaction transaction = null, Boolean? buffered = true, int? timeout = null, CommandType? commandType = null) where T : class
+        {
+            return await Connection.QueryAsync<T>(sql, parameters, transaction, timeout, commandType);
+        }
+        public async Task<T?> QuerySingleOrDefaultAsync<T>(string sql, object parameters = null, IDbTransaction transaction = null, Boolean? buffered = true, int? timeout = null, CommandType? commandType = null) where T : class
+        {
+            return await Connection.QuerySingleOrDefaultAsync<T>(sql, parameters, transaction, timeout, commandType);
+        }
 
         public dynamic Query(string sql, object parameters = null, IDbTransaction transaction = null, Boolean? buffered = true, int? timeout = null, CommandType? commandType = null)
         {
             return this.Connection.Query(sql, parameters, transaction, buffered.Value, timeout, commandType);
+        }
+
+        public async Task<T> QuerySingleAsync<T>(string sql, object parameters = null, IDbTransaction transaction = null, Boolean? buffered = true, int? timeout = null, CommandType? commandType = null)
+        {
+            return await Connection.QuerySingleAsync<T>(sql, parameters, transaction, timeout, commandType);
+        }
+
+        public async Task<int> ExecuteAsync(string sql, object parameters = null, IDbTransaction transaction = null, Boolean? buffered = true, int? timeout = null, CommandType? commandType = null)
+        {
+            return await Connection.ExecuteAsync(sql, parameters, transaction, timeout, commandType);
         }
 
         public void LogIt(string LogType, string Header, string Message)
