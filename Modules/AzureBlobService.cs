@@ -164,4 +164,20 @@ public class AzureBlobService
             return ms.ToArray(); // Return the blob content as a byte array
         }
     }
+
+    public async Task<bool> DeleteBlobAsync(string blobName)
+    {
+        // Get a reference to the container
+        BlobContainerClient containerClient = _blobServiceClient.GetBlobContainerClient(_containerName);
+
+        // Get a reference to the blob
+        BlobClient blobClient = containerClient.GetBlobClient(blobName);
+
+        // Delete the blob if it exists
+        bool deleted = await blobClient.DeleteIfExistsAsync();
+
+        // Return whether the blob was successfully deleted
+        return deleted;
+    }
+
 }
