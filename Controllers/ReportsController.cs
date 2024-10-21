@@ -36,14 +36,7 @@ public class ReportsController : ControllerBase
         try
         {
             var existingReport = await FetchReportByCustomerAndDateAsync(customerReportRequest.Customers[0], customerReportRequest.StartDate, customerReportRequest.EndDate);
-            if (existingReport != null)
-            {
-                return BadRequest(new
-                {
-                    message = "Report already exists",
-                    report = existingReport  // Include the report object in the response
-                });
-            }
+          
             //string strStart = customerReportRequest.StartDate.Year + customerReportRequest.StartDate.Month + customerReportRequest.EndDate.Day + "_";
             ///string strEnd = customerReportRequest.StartDate.Year + customerReportRequest.EndDate.Month + customerReportRequest.EndDate.Day + "";
             string strStart = $"{customerReportRequest.StartDate.Year}{customerReportRequest.StartDate.Month:00}{customerReportRequest.StartDate.Day:00}_";
@@ -61,11 +54,20 @@ public class ReportsController : ControllerBase
                     CreatedDate = DateTime.UtcNow,
                     ReportName = $"{customerReportRequest.Customers[i]}_{strStart}_{strEnd}"
                 };
-
+                if (existingReport != null)
+                {
+                    await OverrideReportAsync(report);  // Add to DB
+                    string fileName = existingReport.ReportID.ToString();
+                    customerDetails.Add(new CustomerDetails() { CustomerName = customerReportRequest.Customers[i], FileName = fileName, ReportId = existingReport.ReportID });
+                }
+                else
+                {
+                    var createdReport = await AddReportAsync(report);  // Add to DB
+                    string fileName = createdReport.ReportID.ToString();
+                    customerDetails.Add(new CustomerDetails() { CustomerName = customerReportRequest.Customers[i], FileName = fileName, ReportId = createdReport.ReportID });
+                }
                 // Add the report to the database and get the generated ReportId
-                var createdReport = await AddReportAsync(report);  // Add to DB
-                string fileName = createdReport.ReportID.ToString();
-                customerDetails.Add(new CustomerDetails() { CustomerName = customerReportRequest.Customers[i], FileName = fileName, ReportId = createdReport.ReportID });
+               
             }
             // Start the report generation in the background 
             Task.Run(() => ProcessReportsAsync(customerDetails, customerReportRequest.StartDate, customerReportRequest.EndDate, user.UserId));
@@ -101,12 +103,14 @@ public class ReportsController : ControllerBase
             }
             if (report.GenerationStatus == "Completed")
             {
-                string strNewReportFile = "C:\\DCEG\\Billing\\" + report.ReportID.ToString() + ".pdf";
-                string strStart = $"{report.StartDate.Year}{report.StartDate.Month}{report.StartDate.Day}_";
-                string strEnd = $"{report.EndDate.Year}{report.EndDate.Month}{report.EndDate.Day}";
+               
+                string strStart = $"{report.StartDate.Year}{report.StartDate.Month:00}{report.StartDate.Day:00}_";
+                string strEnd = $"{report.EndDate.Year}{report.EndDate.Month:00}{report.EndDate.Day:00}";
+                string strNewReportFile = $"C:\\DCEG\\Billing\\{report.CustomerName}_{strStart}_{strEnd}.pdf";
                 byte[] pdfBytes = System.IO.File.ReadAllBytes(strNewReportFile);
                 string blobURL = await _blobService.UploadFileAsync(pdfBytes, $"{report.CustomerName}_{strStart}_{strEnd}.pdf");
                 await UpdateReportAsync(report.ReportID, "Uploaded", user.UserId, blobURL);
+
             }
             return Ok(new { message = "Retrying" });
         }
@@ -299,16 +303,25 @@ public class ReportsController : ControllerBase
                 {
                     foreach (var report in customerReportResponseList)
                     {
+                        if (report.File !=null)
+                        {
                         await UpdateReportAsync(report.ReportId, "Completed", userId);
                         string customerName = report.CustomerName;  // Get the customer name
 
                         // Upload the byte array (PDF) to Azure Blob Storage
                           string strStart = $"{startDate.Year}{startDate.Month:00}{startDate.Day:00}_";
-                            string strEnd = $"{endDate.Year}{endDate.Month:00}{endDate.Day:00}";
+                          string strEnd = $"{endDate.Year}{endDate.Month:00}{endDate.Day:00}";
                         //byte[] pdfBytes = System.IO.File.ReadAllBytes(strNewReportFile);
                         //string blobURL = await _blobService.UploadFileAsync(pdfBytes, $"{report.CustomerName}_{strStart}_{strEnd}.pdf");
                         string blobURL = await _blobService.UploadFileAsync(report.File, $"{report.CustomerName}_{strStart}_{strEnd}.pdf");
                         await UpdateReportAsync(report.ReportId, "Uploaded", userId, blobURL);
+                            string strNewReportFile = $"C:\\DCEG\\Billing\\{report.CustomerName}_{strStart}_{strEnd}.pdf";
+                            System.IO.File.WriteAllBytes(strNewReportFile, report.File);
+                        }
+                        else
+                        {
+                            await UpdateFailedStatus(customerReportRequest, userId);
+                        }
                     }
                 } 
                 else
@@ -364,7 +377,28 @@ public class ReportsController : ControllerBase
             return report;
         }
     }
-    // Update report status and Blob URL
+    private async Task OverrideReportAsync(Report report)
+    {
+        var sql = @"
+        UPDATE Report 
+        SET GenerationStatus = @GenerationStatus,
+            BlobURL = @BlobURL,
+            CreatedDate = GETDATE(),
+            CreatedByID = @CreatedByID,
+            UpdatedDate =null,
+            UpdatedByID = null
+        WHERE ReportID = @ReportID;";
+
+        using (var dl = new DataLayerBase())
+        {
+            await dl.ExecuteAsync(sql, new
+            {
+                GenerationStatus = report.GenerationStatus,
+                BlobURL = report.BlobURL,
+                CreatedByID = report.CreatedByID  
+            });
+        }
+    }
     private async Task UpdateReportAsync(Guid reportId, string status, int updateById, string blobUrl = null, bool isDeleted = false)
     {
         var sql = @"
