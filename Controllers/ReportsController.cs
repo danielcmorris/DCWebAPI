@@ -1,8 +1,10 @@
 ﻿using DCElectricWebAPI.Models;
 using DCElectricWebAPI.Modules;
 using Microsoft.AspNetCore.Mvc;
+using System;
 using System.IO.Compression;
 using System.Net;
+using System.Text.Json;
 
 
 namespace DCElectricWebAPI.Controllers;
@@ -32,7 +34,7 @@ public class ReportsController : ControllerBase
         var user = GetUserBySessionID(Authorization.Substring("Bearer ".Length).Trim());
         //ReportService reportService = new ReportService();
         //
-        
+        _logger.LogInformation("Generating Reports for request: {customerReportRequest}", JsonSerializer.Serialize(customerReportRequest));
         try
         {
             var existingReport = await FetchReportByCustomerAndDateAsync(customerReportRequest.Customers[0], customerReportRequest.StartDate, customerReportRequest.EndDate);
@@ -76,6 +78,7 @@ public class ReportsController : ControllerBase
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex.Message, "Generating Reports for request: {customerReportRequest}", JsonSerializer.Serialize(customerReportRequest));
             return Problem(ex.Message, statusCode: StatusCodes.Status500InternalServerError);
         }
     }
@@ -89,6 +92,7 @@ public class ReportsController : ControllerBase
         var user = GetUserBySessionID(Authorization.Substring("Bearer ".Length).Trim());
         try
         {
+            _logger.LogInformation("Retryiing report generation for reportId: {reportId}", reportId);
             var report = await GetReportByIdAsync(reportId);
             if (report == null)
             {
@@ -118,7 +122,7 @@ public class ReportsController : ControllerBase
         }
         catch (Exception ex)
         {
-
+            _logger.LogError(ex.Message, "Retryiing report generation failed for reportId: {reportId}", reportId);
             throw ex;
         }
         
@@ -143,6 +147,8 @@ public class ReportsController : ControllerBase
     {
         var um = new UserModule(Authorization);
         if (!um.Secured) return Unauthorized();
+        var user = GetUserBySessionID(Authorization.Substring("Bearer ".Length).Trim());
+        _logger.LogInformation("Retryiing all reports for user: {userID}", user.UserId);
         try
         {
             string sql = $@"
@@ -158,6 +164,7 @@ public class ReportsController : ControllerBase
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex.Message, "Error on fetching all reports");
             return Problem(ex.Message, statusCode: StatusCodes.Status500InternalServerError);
         }
     }
@@ -168,7 +175,7 @@ public class ReportsController : ControllerBase
         var um = new UserModule(Authorization);
         if (!um.Secured) return Unauthorized();
 
-        _logger.LogInformation("Actual Blob Name: {BlobName}", blobName);
+        _logger.LogInformation("Downlloading Blob Name: {BlobName}", blobName);
         try
         {
             // Get the blob content as a byte array
@@ -197,6 +204,7 @@ public class ReportsController : ControllerBase
 
         try
         {
+            _logger.LogInformation("Downlloading files as zip for reports: {reports}", string.Join(",", reportIds));
             // Create a temporary memory stream to hold the zip file
             using (var memoryStream = new MemoryStream())
             {
@@ -233,7 +241,7 @@ public class ReportsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to download zip: {BlobName}", reportIds.ToString());
+            _logger.LogError(ex, "Failed to download zip: {BlobName}", string.Join(",", reportIds));
             return StatusCode(500, $"Internal server error: {ex.Message}");
         }
     }
@@ -244,6 +252,7 @@ public class ReportsController : ControllerBase
         if (!um.Secured) return Unauthorized();
 
         var user = GetUserBySessionID(Authorization.Substring("Bearer ".Length).Trim());
+        _logger.LogInformation("Deleting report {reportId} by user: {userID}", reportId, user.UserId);
         try
         {
             var report = await GetReportByIdAsync(reportId);
