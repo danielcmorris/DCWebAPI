@@ -56,6 +56,7 @@ public class ReportsController : ControllerBase
                 };
                 if (existingReport != null)
                 {
+                    report.ReportID = existingReport.ReportID;  
                     await OverrideReportAsync(report);  // Add to DB
                     string fileName = existingReport.ReportID.ToString();
                     customerDetails.Add(new CustomerDetails() { CustomerName = customerReportRequest.Customers[i], FileName = fileName, ReportId = existingReport.ReportID });
@@ -93,7 +94,8 @@ public class ReportsController : ControllerBase
             {
                 return NotFound();
             }
-            await UpdateReportAsync(report.ReportID, "In Progress", user.UserId);
+            report.CreatedByID = user.UserId;
+            await OverrideReportAsync(report);
             if (report.GenerationStatus == "Failed")
             {
                 await UpdateReportAsync(report.ReportID, "In Progress", user.UserId);
@@ -353,9 +355,9 @@ public class ReportsController : ControllerBase
     private async Task<Report> AddReportAsync(Report report)
     {
         var sql = @"
-            INSERT INTO Report (CustomerName, StartDate, EndDate, CreatedByID, GenerationStatus, ReportName, BlobURL, CreatedDate)
+            INSERT INTO Report (CustomerName, StartDate, EndDate, CreatedByID, GenerationStatus, ReportName, BlobURL, CreatedDate, UpdatedDate)
             OUTPUT INSERTED.ReportId  -- Capture the inserted ReportId
-            VALUES (@CustomerName, @StartDate, @EndDate, @CreatedByID, @GenerationStatus, @ReportName, @BlobURL, GETDATE());";
+            VALUES (@CustomerName, @StartDate, @EndDate, @CreatedByID, @GenerationStatus, @ReportName, @BlobURL, GETDATE(),GETDATE());";
 
         using (var dl = new DataLayerBase())
         {
@@ -379,25 +381,36 @@ public class ReportsController : ControllerBase
     }
     private async Task OverrideReportAsync(Report report)
     {
-        var sql = @"
-        UPDATE Report 
-        SET GenerationStatus = @GenerationStatus,
-            BlobURL = @BlobURL,
-            CreatedDate = GETDATE(),
-            CreatedByID = @CreatedByID,
-            UpdatedDate =null,
-            UpdatedByID = null
-        WHERE ReportID = @ReportID;";
-
-        using (var dl = new DataLayerBase())
+        try
         {
-            await dl.ExecuteAsync(sql, new
+            var sql = @"
+                UPDATE Report 
+                SET GenerationStatus = @GenerationStatus,
+                    BlobURL = @BlobURL,
+                    CreatedDate = GETDATE(),
+                    CreatedByID = @CreatedByID,
+                    UpdatedDate = GETDATE(),
+                    UpdatedByID = @CreatedByID,
+                    IsDeleted = 0
+                WHERE ReportID = @ReportID;";
+
+            using (var dl = new DataLayerBase())
             {
-                GenerationStatus = report.GenerationStatus,
-                BlobURL = report.BlobURL,
-                CreatedByID = report.CreatedByID  
-            });
+                await dl.ExecuteAsync(sql, new
+                {
+                    GenerationStatus = report.GenerationStatus,
+                    BlobURL = report.BlobURL,
+                    CreatedByID = report.CreatedByID,
+                    ReportID = report.ReportID
+                });
+            }
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to Update report: {ReportID}", report.ReportID);
+            throw;
+        }
+        
     }
     private async Task UpdateReportAsync(Guid reportId, string status, int updateById, string blobUrl = null, bool isDeleted = false)
     {
