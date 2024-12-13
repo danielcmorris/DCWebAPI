@@ -26,11 +26,11 @@ namespace DCElectricWebAPI.Controllers
 
         }
 
-        [Route("api/customers")]
+        [Route("api/customers/{from}")]
         [HttpGet]
-        public async Task<IActionResult> Get([FromHeader]string Authorization)
+        public async Task<IActionResult> Get([FromHeader] string Authorization, string from = "bhrnewemu")
         {
-             
+
             var um = new UserModule(Authorization);
             if (!um.Secured) return Unauthorized();
 
@@ -47,7 +47,7 @@ namespace DCElectricWebAPI.Controllers
 
             foreach (var item in retval.data)
             {
-      
+
 
                 JObject o = item;
                 var c = new Customer();

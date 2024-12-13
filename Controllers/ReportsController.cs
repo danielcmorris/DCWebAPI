@@ -48,6 +48,7 @@ public class ReportsController : ControllerBase
                 {
                     CustomerName = customerReportRequest.Customers[i],
                     ReportType = customerReportRequest.ReportType,
+                    StrButton = customerReportRequest.StrButton,
                     StartDate = customerReportRequest.StartDate,
                     EndDate = customerReportRequest.EndDate,
                     CreatedByID = user.UserId,  // Assuming UserModule provides UserId
@@ -151,7 +152,7 @@ public class ReportsController : ControllerBase
         try
         {
             string sql = $@"
-                            SELECT ReportId, CustomerName, StartDate, EndDate, CreatedByID, UpdatedByID, GenerationStatus, ReportName, BlobURL, CreatedDate, UpdatedDate
+                            SELECT ReportId, CustomerName, StartDate, EndDate, CreatedByID, UpdatedByID, GenerationStatus, ReportName, BlobURL,ReportType, StrButton, CreatedDate, UpdatedDate
                             FROM Report
                             WHERE IsDeleted = 0 and ReportType = @ReportType
                             ORDER BY CreatedDate DESC";
@@ -369,9 +370,9 @@ public class ReportsController : ControllerBase
     private async Task<Report> AddReportAsync(Report report)
     {
         var sql = @"
-            INSERT INTO Report (CustomerName, StartDate, EndDate, CreatedByID, GenerationStatus, ReportName, BlobURL, CreatedDate, UpdatedDate)
+            INSERT INTO Report (CustomerName, StartDate, EndDate, CreatedByID, GenerationStatus, ReportName, ReportType, StrButton, BlobURL, CreatedDate, UpdatedDate)
             OUTPUT INSERTED.ReportId  -- Capture the inserted ReportId
-            VALUES (@CustomerName, @StartDate, @EndDate, @CreatedByID, @GenerationStatus, @ReportName, @BlobURL, GETDATE(),GETDATE());";
+            VALUES (@CustomerName, @StartDate, @EndDate, @CreatedByID, @GenerationStatus, @ReportName,  @ReportType, @StrButton, @BlobURL, GETDATE(),GETDATE());";
 
         using (var dl = new DataLayerBase())
         {
@@ -384,6 +385,8 @@ public class ReportsController : ControllerBase
                 report.CreatedByID,
                 report.GenerationStatus,
                 report.ReportName,
+                report.ReportType,
+                report.StrButton,
                 report.BlobURL
             });
 
@@ -466,7 +469,7 @@ public class ReportsController : ControllerBase
     private async Task<Report> FetchReportByCustomerAndDateAsync(string customerName, DateTime startDate, DateTime endDate)
     {
         var sql = @"
-        SELECT TOP 1 ReportId, CustomerName, StartDate, EndDate, CreatedByID, UpdatedByID, GenerationStatus, ReportName, BlobURL, CreatedDate, UpdatedDate
+        SELECT TOP 1 ReportId, CustomerName, StartDate, EndDate, CreatedByID, UpdatedByID, GenerationStatus, ReportName, BlobURL, ReportType, StrButton, CreatedDate, UpdatedDate
         FROM Report
         WHERE CustomerName = @CustomerName
         AND CAST(StartDate AS DATE) = CAST(@StartDate AS DATE)
