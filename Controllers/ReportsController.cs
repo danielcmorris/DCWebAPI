@@ -1,9 +1,7 @@
 ﻿using DCElectricWebAPI.Models;
 using DCElectricWebAPI.Modules;
 using Microsoft.AspNetCore.Mvc;
-using System;
 using System.IO.Compression;
-using System.Net;
 using System.Text.Json;
 
 
@@ -22,7 +20,7 @@ public class ReportsController : ControllerBase
         _blobService = blobService;
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
-        _logger = logger;   
+        _logger = logger;
     }
 
     [HttpPost("create")]
@@ -38,7 +36,7 @@ public class ReportsController : ControllerBase
         try
         {
             var existingReport = await FetchReportByCustomerAndDateAsync(customerReportRequest.Customers[0], customerReportRequest.StartDate, customerReportRequest.EndDate);
-          
+
             //string strStart = customerReportRequest.StartDate.Year + customerReportRequest.StartDate.Month + customerReportRequest.EndDate.Day + "_";
             ///string strEnd = customerReportRequest.StartDate.Year + customerReportRequest.EndDate.Month + customerReportRequest.EndDate.Day + "";
             string strStart = $"{customerReportRequest.StartDate.Year}{customerReportRequest.StartDate.Month:00}{customerReportRequest.StartDate.Day:00}_";
@@ -49,6 +47,7 @@ public class ReportsController : ControllerBase
                 var report = new Report
                 {
                     CustomerName = customerReportRequest.Customers[i],
+                    ReportType = customerReportRequest.ReportType,
                     StartDate = customerReportRequest.StartDate,
                     EndDate = customerReportRequest.EndDate,
                     CreatedByID = user.UserId,  // Assuming UserModule provides UserId
@@ -58,7 +57,7 @@ public class ReportsController : ControllerBase
                 };
                 if (existingReport != null)
                 {
-                    report.ReportID = existingReport.ReportID;  
+                    report.ReportID = existingReport.ReportID;
                     await OverrideReportAsync(report);  // Add to DB
                     string fileName = existingReport.ReportID.ToString();
                     customerDetails.Add(new CustomerDetails() { CustomerName = customerReportRequest.Customers[i], FileName = fileName, ReportId = existingReport.ReportID });
@@ -70,10 +69,10 @@ public class ReportsController : ControllerBase
                     customerDetails.Add(new CustomerDetails() { CustomerName = customerReportRequest.Customers[i], FileName = fileName, ReportId = createdReport.ReportID });
                 }
                 // Add the report to the database and get the generated ReportId
-               
+
             }
             // Start the report generation in the background 
-            Task.Run(() => ProcessReportsAsync(customerDetails, customerReportRequest.StartDate, customerReportRequest.EndDate, user.UserId));
+            Task.Run(() => ProcessReportsAsync(customerDetails, customerReportRequest.StartDate, customerReportRequest.EndDate, user.UserId, customerReportRequest.ReportType, customerReportRequest.StrButton));
             return Ok(new { message = "Reports generation initiated" });
         }
         catch (Exception ex)
@@ -82,7 +81,7 @@ public class ReportsController : ControllerBase
             return Problem(ex.Message, statusCode: StatusCodes.Status500InternalServerError);
         }
     }
-    
+
     [HttpPost("retry/{reportId}")]
     public async Task<IActionResult> Retry([FromHeader] string Authorization, [FromRoute] Guid reportId)
     {
@@ -105,11 +104,11 @@ public class ReportsController : ControllerBase
                 await UpdateReportAsync(report.ReportID, "In Progress", user.UserId);
                 List<CustomerDetails> customerDetails = new List<CustomerDetails>();
                 customerDetails.Add(new CustomerDetails() { CustomerName = report.CustomerName, FileName = report.ReportID.ToString(), ReportId = report.ReportID });
-                Task.Run(() => ProcessReportsAsync(customerDetails, report.StartDate, report.EndDate, user.UserId));
+                Task.Run(() => ProcessReportsAsync(customerDetails, report.StartDate, report.EndDate, user.UserId, report.ReportType, report.StrButton));
             }
             if (report.GenerationStatus == "Completed")
             {
-               
+
                 string strStart = $"{report.StartDate.Year}{report.StartDate.Month:00}{report.StartDate.Day:00}_";
                 string strEnd = $"{report.EndDate.Year}{report.EndDate.Month:00}{report.EndDate.Day:00}";
                 string strNewReportFile = $"C:\\DCEG\\Billing\\{report.CustomerName}_{strStart}_{strEnd}.pdf";
@@ -125,7 +124,7 @@ public class ReportsController : ControllerBase
             _logger.LogError(ex.Message, "Retryiing report generation failed for reportId: {reportId}", reportId);
             throw ex;
         }
-        
+
     }
     //[HttpGet]
     //public async Task<IActionResult> GetAllFilesAsync()
@@ -142,8 +141,8 @@ public class ReportsController : ControllerBase
     //    }
     //}
 
-    [HttpGet("all")]
-    public async Task<IActionResult> GetAllReports([FromHeader] string Authorization)
+    [HttpGet("all/{reportType}")]
+    public async Task<IActionResult> GetAllReports([FromHeader] string Authorization, [FromRoute] string reportType)
     {
         var um = new UserModule(Authorization);
         if (!um.Secured) return Unauthorized();
@@ -154,11 +153,14 @@ public class ReportsController : ControllerBase
             string sql = $@"
                             SELECT ReportId, CustomerName, StartDate, EndDate, CreatedByID, UpdatedByID, GenerationStatus, ReportName, BlobURL, CreatedDate, UpdatedDate
                             FROM Report
-                            WHERE IsDeleted = 0
+                            WHERE IsDeleted = 0 and ReportType = @ReportType
                             ORDER BY CreatedDate DESC";
 
             var dl = new DataLayerBase();
-            var x = await dl.QueryAsync<Report>(sql);
+            var x = await dl.QueryAsync<Report>(sql, new
+            {
+                ReportType = reportType
+            });
 
             return Ok(x);
         }
@@ -288,18 +290,21 @@ public class ReportsController : ControllerBase
             return StatusCode(500, $"Internal server error: {ex.Message}");
         }
     }
-    private async Task ProcessReportsAsync(List<CustomerDetails> customerDetails, DateTime startDate, DateTime endDate, int userId)
-    { 
+    private async Task ProcessReportsAsync(List<CustomerDetails> customerDetails, DateTime startDate, DateTime endDate, int userId, string reportType, string strButton = null)
+    {
 
         var client = _httpClientFactory.CreateClient();
-        var reportServiceUrl = _configuration["ReportServer"] + "/api/Report"; // .NET 4.8 Service URL
+        var baseUrl = _configuration["ReportServer"] + "/api";
         // Send request to .NET 4.8 service
+
+        var reportServiceUrl = reportType == "Traffic" ? $"{baseUrl}/Report" : $"{baseUrl}/StreetLight";
 
         ReportRequest customerReportRequest = new ReportRequest()
         {
             CustomerDetails = customerDetails,
             StartDate = startDate,
-            EndDate = endDate
+            EndDate = endDate,
+            StrButton = strButton
         };
         try
         {
@@ -310,22 +315,22 @@ public class ReportsController : ControllerBase
 
                 // Get the report (e.g., PDF) from the .NET Framework service
                 var customerReportResponseList = await response.Content.ReadFromJsonAsync<List<CustomerReportResponse>>();
-                if (customerReportResponseList.Count > 0 )
+                if (customerReportResponseList.Count > 0)
                 {
                     foreach (var report in customerReportResponseList)
                     {
-                        if (report.File !=null)
+                        if (report.File != null)
                         {
-                        await UpdateReportAsync(report.ReportId, "Completed", userId);
-                        string customerName = report.CustomerName;  // Get the customer name
+                            await UpdateReportAsync(report.ReportId, "Completed", userId);
+                            string customerName = report.CustomerName;  // Get the customer name
 
-                        // Upload the byte array (PDF) to Azure Blob Storage
-                          string strStart = $"{startDate.Year}{startDate.Month:00}{startDate.Day:00}_";
-                          string strEnd = $"{endDate.Year}{endDate.Month:00}{endDate.Day:00}";
-                        //byte[] pdfBytes = System.IO.File.ReadAllBytes(strNewReportFile);
-                        //string blobURL = await _blobService.UploadFileAsync(pdfBytes, $"{report.CustomerName}_{strStart}_{strEnd}.pdf");
-                        string blobURL = await _blobService.UploadFileAsync(report.File, $"{report.CustomerName}_{strStart}_{strEnd}.pdf");
-                        await UpdateReportAsync(report.ReportId, "Uploaded", userId, blobURL);
+                            // Upload the byte array (PDF) to Azure Blob Storage
+                            string strStart = $"{startDate.Year}{startDate.Month:00}{startDate.Day:00}_";
+                            string strEnd = $"{endDate.Year}{endDate.Month:00}{endDate.Day:00}";
+                            //byte[] pdfBytes = System.IO.File.ReadAllBytes(strNewReportFile);
+                            //string blobURL = await _blobService.UploadFileAsync(pdfBytes, $"{report.CustomerName}_{strStart}_{strEnd}.pdf");
+                            string blobURL = await _blobService.UploadFileAsync(report.File, $"{report.CustomerName}_{strStart}_{strEnd}.pdf");
+                            await UpdateReportAsync(report.ReportId, "Uploaded", userId, blobURL);
                             string strNewReportFile = $"C:\\DCEG\\Billing\\{report.CustomerName}_{strStart}_{strEnd}.pdf";
                             System.IO.File.WriteAllBytes(strNewReportFile, report.File);
                         }
@@ -334,25 +339,25 @@ public class ReportsController : ControllerBase
                             await UpdateFailedStatus(customerReportRequest, userId);
                         }
                     }
-                } 
+                }
                 else
                 {
                     await UpdateFailedStatus(customerReportRequest, userId);
                 }
-                
 
-            } 
+
+            }
             else
             {
-               await UpdateFailedStatus(customerReportRequest, userId);
+                await UpdateFailedStatus(customerReportRequest, userId);
             }
         }
-        catch (Exception ex )
+        catch (Exception ex)
         {
             await UpdateFailedStatus(customerReportRequest, userId);
             throw ex;
         }
-       
+
     }
     private async Task UpdateFailedStatus(ReportRequest customerReportRequest, int userId)
     {
@@ -419,7 +424,7 @@ public class ReportsController : ControllerBase
             _logger.LogError(ex, "Failed to Update report: {ReportID}", report.ReportID);
             throw;
         }
-        
+
     }
     private async Task UpdateReportAsync(Guid reportId, string status, int updateById, string blobUrl = null, bool isDeleted = false)
     {
@@ -458,7 +463,7 @@ public class ReportsController : ControllerBase
             return report;
         }
     }
-    public async Task<Report> FetchReportByCustomerAndDateAsync(string customerName, DateTime startDate, DateTime endDate)
+    private async Task<Report> FetchReportByCustomerAndDateAsync(string customerName, DateTime startDate, DateTime endDate)
     {
         var sql = @"
         SELECT TOP 1 ReportId, CustomerName, StartDate, EndDate, CreatedByID, UpdatedByID, GenerationStatus, ReportName, BlobURL, CreatedDate, UpdatedDate

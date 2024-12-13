@@ -3,12 +3,15 @@
 public class Report
 {
     public Guid ReportID { get; set; }  // Generated automatically
+
+    public string ReportType { get; set; } // Streetlight or Traffic 
+    public string StrButton { get; set; }
     public string CustomerName { get; set; }
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
     public int CreatedByID { get; set; }
     public int UpdatedByID { get; set; }
-    public bool IsDeleted { get; set; } 
+    public bool IsDeleted { get; set; }
     public string GenerationStatus { get; set; }
     public string ReportName { get; set; }
     public string BlobURL { get; set; }

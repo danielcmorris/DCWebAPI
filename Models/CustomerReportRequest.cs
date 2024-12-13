@@ -5,6 +5,8 @@ public class CustomerReportRequest
     public List<string> Customers { get; set; }
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
+    public string StrButton { get; set; }
+    public string ReportType { get; set; } //
 }
 public class CustomerDetails
 {
@@ -18,6 +20,7 @@ public class ReportRequest
     public List<CustomerDetails> CustomerDetails { get; set; }
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
+    public string StrButton { get; set; } = string.Empty;
 }
 
 public class CustomerReportResponse
