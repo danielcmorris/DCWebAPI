@@ -77,6 +77,7 @@ namespace DCElectricWebAPI.Controllers.Admin
                 var parameters = new DynamicParameters();
                 parameters.Add("@UserID", id, DbType.Int64);
                 parameters.Add("@Email", userParams.Email, DbType.String);
+                parameters.Add("@Password", userParams.Password, DbType.String);
                 parameters.Add("@FirstName", userParams.FirstName, DbType.String);
                 parameters.Add("@LastName", userParams.LastName, DbType.String);
                 parameters.Add("@UserLevel", userParams.UserLevel, DbType.String);
