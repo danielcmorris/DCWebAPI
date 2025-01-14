@@ -28,5 +28,7 @@ public class CustomerReportResponse
     public Guid ReportId { get; set; }
     public string FileName { get; set; }
     public string CustomerName { get; set; }
+
+    public string ErrorMessage { get; set; }
     public byte[] File { get; set; }
 }

@@ -309,6 +309,7 @@ public class ReportsController : ControllerBase
         };
         try
         {
+            client.Timeout = TimeSpan.FromMinutes(5);
             var response = await client.PostAsJsonAsync(reportServiceUrl, customerReportRequest);
 
             if (response.IsSuccessStatusCode)
