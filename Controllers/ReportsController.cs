@@ -152,7 +152,7 @@ public class ReportsController : ControllerBase
         try
         {
             string sql = $@"
-                            SELECT ReportId, CustomerName, StartDate, EndDate, CreatedByID, UpdatedByID, GenerationStatus, ReportName, BlobURL,ReportType, StrButton, CreatedDate, UpdatedDate
+                            SELECT ReportId, CustomerName, StartDate, EndDate, CreatedByID, UpdatedByID, GenerationStatus, ReportName, BlobURL,ReportType, StrButton,Message, CreatedDate, UpdatedDate
                             FROM Report
                             WHERE IsDeleted = 0 and ReportType = @ReportType
                             ORDER BY CreatedDate DESC";
@@ -309,7 +309,7 @@ public class ReportsController : ControllerBase
         };
         try
         {
-            client.Timeout = TimeSpan.FromMinutes(5);
+            client.Timeout = TimeSpan.FromMinutes(7);
             var response = await client.PostAsJsonAsync(reportServiceUrl, customerReportRequest);
 
             if (response.IsSuccessStatusCode)
@@ -338,34 +338,40 @@ public class ReportsController : ControllerBase
                         }
                         else
                         {
-                            await UpdateFailedStatus(customerReportRequest, userId);
+                            await UpdateFailedStatus(customerReportRequest, userId, report.Message);
                         }
                     }
                 }
                 else
                 {
-                    await UpdateFailedStatus(customerReportRequest, userId);
+                    string errorMessage = "No reports generated";
+                    if (customerReportResponseList.Count > 0)
+                    {
+                        errorMessage = customerReportResponseList[0].Message;
+                    }
+
+                    await UpdateFailedStatus(customerReportRequest, userId, "No reports generated " + errorMessage);
                 }
 
 
             }
             else
             {
-                await UpdateFailedStatus(customerReportRequest, userId);
+                await UpdateFailedStatus(customerReportRequest, userId, "Report Generation Failed is status code false");
             }
         }
         catch (Exception ex)
         {
-            await UpdateFailedStatus(customerReportRequest, userId);
+            await UpdateFailedStatus(customerReportRequest, userId, "Report Generation Failed http call exception" + ex.Message);
             throw ex;
         }
 
     }
-    private async Task UpdateFailedStatus(ReportRequest customerReportRequest, int userId)
+    private async Task UpdateFailedStatus(ReportRequest customerReportRequest, int userId, string message = null)
     {
         foreach (var report in customerReportRequest.CustomerDetails)
         {
-            await UpdateReportAsync(report.ReportId, "Failed", userId);
+            await UpdateReportAsync(report.ReportId, "Failed", userId, null, false, message);
         }
     }
     private async Task<Report> AddReportAsync(Report report)
@@ -430,13 +436,14 @@ public class ReportsController : ControllerBase
         }
 
     }
-    private async Task UpdateReportAsync(Guid reportId, string status, int updateById, string blobUrl = null, bool isDeleted = false)
+    private async Task UpdateReportAsync(Guid reportId, string status, int updateById, string blobUrl = null, bool isDeleted = false, string message = null)
     {
         var sql = @"
         UPDATE Report 
         SET GenerationStatus = @GenerationStatus,
             BlobURL = @BlobURL,
             IsDeleted = @IsDeleted,
+            Message = @Message,
             UpdatedDate = GETDATE(),
             UpdatedByID = @UpdatedByID
         WHERE ReportID = @ReportID;";
@@ -448,6 +455,7 @@ public class ReportsController : ControllerBase
                 GenerationStatus = status,
                 BlobURL = blobUrl,
                 IsDeleted = isDeleted,
+                Message = message,
                 ReportID = reportId,
                 UpdatedByID = updateById  // Assuming UserModule provides UserId
             });

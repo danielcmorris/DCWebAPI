@@ -8,6 +8,8 @@ public class Report
     public string StrButton { get; set; }
     public string CustomerName { get; set; }
     public DateTime StartDate { get; set; }
+    public string Message { get; set; }
+
     public DateTime EndDate { get; set; }
     public int CreatedByID { get; set; }
     public int UpdatedByID { get; set; }
