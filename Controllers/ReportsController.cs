@@ -1,9 +1,9 @@
 ﻿using DCElectricWebAPI.Models;
 using DCElectricWebAPI.Modules;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json;
 using System.IO.Compression;
-using System.Text.Json;
-
+ 
 
 namespace DCElectricWebAPI.Controllers;
 
@@ -32,7 +32,7 @@ public class ReportsController : ControllerBase
         var user = GetUserBySessionID(Authorization.Substring("Bearer ".Length).Trim());
         //ReportService reportService = new ReportService();
         //
-        _logger.LogInformation("Generating Reports for request: {customerReportRequest}", JsonSerializer.Serialize(customerReportRequest));
+        _logger.LogInformation("Generating Reports for request: {customerReportRequest}", JsonConvert.SerializeObject(customerReportRequest));
         try
         {
             var existingReport = await FetchReportByCustomerAndDateAsync(customerReportRequest.Customers[0], customerReportRequest.StartDate, customerReportRequest.EndDate);
@@ -78,7 +78,7 @@ public class ReportsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex.Message, "Generating Reports for request: {customerReportRequest}", JsonSerializer.Serialize(customerReportRequest));
+            _logger.LogError(ex.Message, "Generating Reports for request: {customerReportRequest}", JsonConvert.SerializeObject(customerReportRequest));
             return Problem(ex.Message, statusCode: StatusCodes.Status500InternalServerError);
         }
     }

@@ -7,19 +7,20 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ABCpdf" Version="13.2.0" />
-    <PackageReference Include="Azure.Storage.Blobs" Version="12.22.2" />
-    <PackageReference Include="Dapper" Version="2.1.35" />
-    <PackageReference Include="Google.Apis.Storage.v1" Version="1.68.0.3568" />
+    <PackageReference Include="ABCpdf" Version="13.3.1" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.23.0" />
+    <PackageReference Include="Dapper" Version="2.1.66" />
+    <PackageReference Include="Google.Apis.Storage.v1" Version="1.68.0.3627" />
     <PackageReference Include="Google.Cloud.Storage.V1" Version="4.10.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
-    <PackageReference Include="Serilog.Settings.Configuration" Version="8.0.4" />
+    <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="9.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.1" />
-    <PackageReference Include="System.Data.SqlClient" Version="4.8.6" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.1.2" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="9.0.2" />
+    <PackageReference Include="System.Data.SqlClient" Version="4.9.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.6.0" />
+ 
   </ItemGroup>
 
   <ItemGroup>
@@ -36,8 +37,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\QuickBase-C-Sharp-SDK2\Intuit.QuickBase.Client\Intuit.QuickBase.Client.csproj" />
-    <ProjectReference Include="..\QuickBase-C-Sharp-SDK2\Intuit.QuickBase.Core\Intuit.QuickBase.Core.csproj" />
+    <ProjectReference Include="..\QuickBase-C-Sharp-SDK\Intuit.QuickBase.Client\Intuit.QuickBase.Client.csproj" />
+    <ProjectReference Include="..\QuickBase-C-Sharp-SDK\Intuit.QuickBase.Core\Intuit.QuickBase.Core.csproj" />
   </ItemGroup>
 
 </Project>
