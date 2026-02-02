@@ -847,6 +847,98 @@ public class StreetLightsService
     }
 
     /// <summary>
+    /// Get all tickets across all customers in a date range
+    /// </summary>
+    public async Task<List<TicketData>> GetAllTicketsAsync(DateTime startDate, DateTime endDate)
+    {
+        var qb = new QuickBaseConnector(_settings);
+        var tickets = new List<TicketData>();
+
+        // Query all tickets in date range (no customer filter)
+        string whereClause = $"{{{TicketFields.CompletionDate}.GTE.'{startDate:yyyy-MM-dd}'}}AND{{{TicketFields.CompletionDate}.LTE.'{endDate:yyyy-MM-dd}'}}AND{{{TicketFields.DoNotReport}.EX.'0'}}";
+
+        var query = new QBQuery
+        {
+            from = TicketsTableId,
+            select = new List<int>
+            {
+                TicketFields.RecordId,
+                TicketFields.TicketId,
+                TicketFields.JobNumber,
+                TicketFields.CustomerName,
+                TicketFields.CallerName,
+                TicketFields.CallerType,
+                TicketFields.FixtureType,
+                TicketFields.StreetLightNumber,
+                TicketFields.AddressCalc,
+                TicketFields.CrossStreet,
+                TicketFields.DateTimeOpened,
+                TicketFields.ServiceType,
+                TicketFields.ProblemType,
+                TicketFields.Details,
+                TicketFields.StartDate,
+                TicketFields.StartTime,
+                TicketFields.CompletionDate,
+                TicketFields.CompletionTime,
+                TicketFields.CompletedBy,
+                TicketFields.Analysis,
+                TicketFields.NotBillable,
+                TicketFields.BillableOverride
+            },
+            where = whereClause,
+            sortBy = new List<QBFieldSet>
+            {
+                new QBFieldSet { fieldId = TicketFields.CustomerName, order = "ASC" },
+                new QBFieldSet { fieldId = TicketFields.CompletionDate, order = "ASC" }
+            },
+            options = new QBQueryOptions { top = 10000 }
+        };
+
+        _logger.LogInformation("Querying all tickets from {Start} to {End}", startDate, endDate);
+
+        var result = await qb.Query(query);
+
+        if (result?.data != null)
+        {
+            foreach (var record in result.data)
+            {
+                JObject obj = record;
+                var ticket = new TicketData
+                {
+                    RecordId = GetStringValue(obj, TicketFields.RecordId),
+                    TicketId = GetStringValue(obj, TicketFields.TicketId),
+                    JobNumber = GetStringValue(obj, TicketFields.JobNumber),
+                    CustomerName = GetStringValue(obj, TicketFields.CustomerName),
+                    CallerName = GetStringValue(obj, TicketFields.CallerName),
+                    CallerType = GetStringValue(obj, TicketFields.CallerType),
+                    FixtureType = GetStringValue(obj, TicketFields.FixtureType),
+                    StreetLightNumber = GetStringValue(obj, TicketFields.StreetLightNumber),
+                    LocationAddress = GetStringValue(obj, TicketFields.AddressCalc),
+                    LocationCrossStreet = GetStringValue(obj, TicketFields.CrossStreet),
+                    ServiceType = GetStringValue(obj, TicketFields.ServiceType),
+                    ProblemType = GetStringValue(obj, TicketFields.ProblemType),
+                    Details = GetStringValue(obj, TicketFields.Details),
+                    Analysis = GetStringValue(obj, TicketFields.Analysis),
+                    Technician = GetStringValue(obj, TicketFields.CompletedBy),
+                    DateTimeOpened = ParseQuickBaseDate(GetStringValue(obj, TicketFields.DateTimeOpened)),
+                    StartDate = ParseQuickBaseDate(GetStringValue(obj, TicketFields.StartDate)),
+                    StartTime = ParseQuickBaseTime(GetStringValue(obj, TicketFields.StartTime)),
+                    CompletionDate = ParseQuickBaseDate(GetStringValue(obj, TicketFields.CompletionDate)),
+                    CompletionTime = ParseQuickBaseTime(GetStringValue(obj, TicketFields.CompletionTime)),
+                    NotBillable = GetStringValue(obj, TicketFields.NotBillable) == "1",
+                    BillableOverride = GetStringValue(obj, TicketFields.BillableOverride) == "1"
+                };
+
+                tickets.Add(ticket);
+            }
+        }
+
+        _logger.LogInformation("Found {Count} tickets across all customers", tickets.Count);
+
+        return tickets;
+    }
+
+    /// <summary>
     /// Get labor line items for a ticket
     /// </summary>
     private async Task<List<LaborLineItem>> GetLaborForTicketAsync(

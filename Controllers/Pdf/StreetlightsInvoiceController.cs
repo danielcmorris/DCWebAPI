@@ -481,6 +481,41 @@ public class StreetlightsInvoiceController : ControllerBase
             return StatusCode(500, $"Error retrieving pricing: {ex.Message}");
         }
     }
+
+    /// <summary>
+    /// Get all tickets across all customers in a date range
+    /// </summary>
+    /// <param name="startDate">Start date (completion date)</param>
+    /// <param name="endDate">End date (completion date)</param>
+    [HttpGet("tickets/all")]
+    public async Task<IActionResult> GetAllTickets(
+        [FromHeader] string? Authorization,
+        [FromQuery] DateTime startDate,
+        [FromQuery] DateTime endDate,
+        [FromQuery] string? apiKey = null)
+    {
+        try
+        {
+            if (!IsAuthorized(Authorization, apiKey)) return Unauthorized();
+
+            _logger.LogInformation("Getting all tickets from {Start} to {End}", startDate, endDate);
+
+            var tickets = await _service.GetAllTicketsAsync(startDate, endDate);
+
+            return Ok(new
+            {
+                startDate,
+                endDate,
+                totalCount = tickets.Count,
+                tickets
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting all tickets");
+            return StatusCode(500, $"Error retrieving tickets: {ex.Message}");
+        }
+    }
 }
 
 #region Internal Models
