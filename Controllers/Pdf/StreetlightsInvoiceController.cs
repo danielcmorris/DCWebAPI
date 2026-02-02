@@ -89,9 +89,9 @@ public class StreetlightsInvoiceController : ControllerBase
     private async Task<Report> AddReportAsync(Report report)
     {
         var sql = @"
-            INSERT INTO Report (CustomerName, StartDate, EndDate, CreatedByID, GenerationStatus, ReportName, ReportType, StrButton, BlobURL, CreatedDate, UpdatedDate)
+            INSERT INTO Report (CustomerName, StartDate, EndDate, CreatedByID, GenerationStatus, ReportName, ReportType, StrButton, BlobURL, TicketCount, CreatedDate, UpdatedDate)
             OUTPUT INSERTED.ReportId
-            VALUES (@CustomerName, @StartDate, @EndDate, @CreatedByID, @GenerationStatus, @ReportName, @ReportType, @StrButton, @BlobURL, GETDATE(), GETDATE());";
+            VALUES (@CustomerName, @StartDate, @EndDate, @CreatedByID, @GenerationStatus, @ReportName, @ReportType, @StrButton, @BlobURL, @TicketCount, GETDATE(), GETDATE());";
 
         using (var dl = new DataLayerBase())
         {
@@ -105,7 +105,8 @@ public class StreetlightsInvoiceController : ControllerBase
                 report.ReportName,
                 report.ReportType,
                 report.StrButton,
-                report.BlobURL
+                report.BlobURL,
+                report.TicketCount
             });
 
             report.ReportID = reportId;
@@ -114,7 +115,7 @@ public class StreetlightsInvoiceController : ControllerBase
         }
     }
 
-    private async Task UpdateReportAsync(Guid reportId, string status, int updateById, string? blobUrl = null, bool isDeleted = false, string? message = null)
+    private async Task UpdateReportAsync(Guid reportId, string status, int updateById, string? blobUrl = null, bool isDeleted = false, string? message = null, int? ticketCount = null)
     {
         var sql = @"
             UPDATE Report
@@ -122,6 +123,7 @@ public class StreetlightsInvoiceController : ControllerBase
                 BlobURL = @BlobURL,
                 IsDeleted = @IsDeleted,
                 Message = @Message,
+                TicketCount = COALESCE(@TicketCount, TicketCount),
                 UpdatedDate = GETDATE(),
                 UpdatedByID = @UpdatedByID
             WHERE ReportID = @ReportID;";
@@ -134,6 +136,7 @@ public class StreetlightsInvoiceController : ControllerBase
                 BlobURL = blobUrl,
                 IsDeleted = isDeleted,
                 Message = message,
+                TicketCount = ticketCount,
                 ReportID = reportId,
                 UpdatedByID = updateById
             });
@@ -180,11 +183,11 @@ public class StreetlightsInvoiceController : ControllerBase
                 // Upload to Azure
                 string blobUrl = await _blobService.UploadFileAsync(pdfBytes, fileName, "streetlights");
 
-                // Update report status to completed/uploaded
-                await UpdateReportAsync(task.ReportId, "Uploaded", userId, blobUrl);
+                // Update report status to completed/uploaded with fixture count
+                await UpdateReportAsync(task.ReportId, "Uploaded", userId, blobUrl, ticketCount: response.TotalFixtures);
 
-                _logger.LogInformation("Completed fixture report for {Customer}, ReportID: {ReportId}",
-                    task.Request.CustomerName, task.ReportId);
+                _logger.LogInformation("Completed fixture report for {Customer}, ReportID: {ReportId}, FixtureCount: {Count}",
+                    task.Request.CustomerName, task.ReportId, response.TotalFixtures);
             }
             catch (Exception ex)
             {
@@ -240,11 +243,11 @@ public class StreetlightsInvoiceController : ControllerBase
                 // Upload to Azure
                 string blobUrl = await _blobService.UploadFileAsync(pdfBytes, fileName, "streetlights");
 
-                // Update report status to completed/uploaded
-                await UpdateReportAsync(task.ReportId, "Uploaded", userId, blobUrl);
+                // Update report status to completed/uploaded with ticket count
+                await UpdateReportAsync(task.ReportId, "Uploaded", userId, blobUrl, ticketCount: response.TicketCount);
 
-                _logger.LogInformation("Completed ticket report for {Customer}, ReportID: {ReportId}",
-                    task.Request.CustomerName, task.ReportId);
+                _logger.LogInformation("Completed ticket report for {Customer}, ReportID: {ReportId}, TicketCount: {Count}",
+                    task.Request.CustomerName, task.ReportId, response.TicketCount);
             }
             catch (Exception ex)
             {
@@ -369,7 +372,7 @@ public class StreetlightsInvoiceController : ControllerBase
                 {
                     CustomerName = request.CustomerName,
                     ReportType = "Streetlight",
-                    StrButton = "Tickets",
+                    StrButton = "Ticket",
                     StartDate = request.StartDate,
                     EndDate = request.EndDate,
                     CreatedByID = userId,
