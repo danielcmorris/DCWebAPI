@@ -40,9 +40,6 @@
     <NativeLibs Remove="Modules\TicketBuilder.cs" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\QuickBase-C-Sharp-SDK\Intuit.QuickBase.Client\Intuit.QuickBase.Client.csproj" />
-    <ProjectReference Include="..\QuickBase-C-Sharp-SDK\Intuit.QuickBase.Core\Intuit.QuickBase.Core.csproj" />
-  </ItemGroup>
+  <!-- Legacy Intuit QuickBase SDK references removed - using REST API exclusively -->
 
 </Project>

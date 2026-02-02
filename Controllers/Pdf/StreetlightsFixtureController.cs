@@ -11,6 +11,9 @@ public class StreetlightsFixtureController : ControllerBase
     private readonly StreetLightsService _service;
     private readonly ILogger<StreetlightsFixtureController> _logger;
 
+    // API key for bypassing standard auth (for testing/internal use)
+    private const string API_KEY = "dcelectric-sl-2025";
+
     public StreetlightsFixtureController(
         StreetLightsService service,
         ILogger<StreetlightsFixtureController> logger)
@@ -20,21 +23,52 @@ public class StreetlightsFixtureController : ControllerBase
     }
 
     /// <summary>
+    /// Check if request is authorized via API key or standard auth
+    /// </summary>
+    private bool IsAuthorized(string? authorization, string? apiKey)
+    {
+        // Check API key first (header or query param)
+        if (!string.IsNullOrEmpty(apiKey) && apiKey == API_KEY)
+            return true;
+
+        // Check X-Api-Key header
+        if (Request.Headers.TryGetValue("X-Api-Key", out var headerKey) && headerKey == API_KEY)
+            return true;
+
+        // Fall back to standard UserModule auth
+        if (!string.IsNullOrEmpty(authorization))
+        {
+            try
+            {
+                var um = new UserModule(authorization);
+                return um.Secured;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Get fixture billing data for a customer
     /// </summary>
     /// <param name="details">If true (default), returns all individual locations. If false, aggregates by fixture type and price.</param>
     /// <param name="format">Output format: "json" (default) or "pdf"</param>
+    /// <param name="apiKey">Optional API key for bypass auth</param>
     [HttpPost]
     public async Task<IActionResult> GetFixtureBillingData(
-        [FromHeader] string Authorization,
+        [FromHeader] string? Authorization,
         [FromBody] FixtureBillingRequest request,
         [FromQuery] bool details = true,
-        [FromQuery] string format = "json")
+        [FromQuery] string format = "json",
+        [FromQuery] string? apiKey = null)
     {
         try
         {
-            var um = new UserModule(Authorization);
-            if (!um.Secured) return Unauthorized();
+            if (!IsAuthorized(Authorization, apiKey)) return Unauthorized();
 
             _logger.LogInformation("Getting fixture billing data for customer: {Customer}, details: {Details}, format: {Format}",
                 request.CustomerName, details, format);
@@ -81,16 +115,17 @@ public class StreetlightsFixtureController : ControllerBase
     /// Get ticket billing data for a customer
     /// </summary>
     /// <param name="format">Output format: "json" (default) or "pdf"</param>
+    /// <param name="apiKey">Optional API key for bypass auth</param>
     [HttpPost("tickets")]
     public async Task<IActionResult> GetTicketBillingData(
-        [FromHeader] string Authorization,
+        [FromHeader] string? Authorization,
         [FromBody] TicketBillingRequest request,
-        [FromQuery] string format = "json")
+        [FromQuery] string format = "json",
+        [FromQuery] string? apiKey = null)
     {
         try
         {
-            var um = new UserModule(Authorization);
-            if (!um.Secured) return Unauthorized();
+            if (!IsAuthorized(Authorization, apiKey)) return Unauthorized();
 
             _logger.LogInformation("Getting ticket billing data for customer: {Customer}, from {Start} to {End}, format: {Format}",
                 request.CustomerName, request.StartDate, request.EndDate, format);
@@ -130,12 +165,13 @@ public class StreetlightsFixtureController : ControllerBase
     /// Get all customers with their pricing levels
     /// </summary>
     [HttpGet("customers")]
-    public async Task<IActionResult> GetCustomers([FromHeader] string Authorization)
+    public async Task<IActionResult> GetCustomers(
+        [FromHeader] string? Authorization,
+        [FromQuery] string? apiKey = null)
     {
         try
         {
-            var um = new UserModule(Authorization);
-            if (!um.Secured) return Unauthorized();
+            if (!IsAuthorized(Authorization, apiKey)) return Unauthorized();
 
             var customers = await _service.GetCustomersAsync();
             return Ok(customers);
@@ -152,13 +188,13 @@ public class StreetlightsFixtureController : ControllerBase
     /// </summary>
     [HttpGet("divisions/{customerName}")]
     public async Task<IActionResult> GetDivisions(
-        [FromHeader] string Authorization,
-        string customerName)
+        [FromHeader] string? Authorization,
+        string customerName,
+        [FromQuery] string? apiKey = null)
     {
         try
         {
-            var um = new UserModule(Authorization);
-            if (!um.Secured) return Unauthorized();
+            if (!IsAuthorized(Authorization, apiKey)) return Unauthorized();
 
             var divisions = await _service.GetCustomerDivisionsAsync(customerName);
             return Ok(divisions);
@@ -175,13 +211,13 @@ public class StreetlightsFixtureController : ControllerBase
     /// </summary>
     [HttpGet("pricing/{pricingLevel}")]
     public async Task<IActionResult> GetPricing(
-        [FromHeader] string Authorization,
-        string pricingLevel)
+        [FromHeader] string? Authorization,
+        string pricingLevel,
+        [FromQuery] string? apiKey = null)
     {
         try
         {
-            var um = new UserModule(Authorization);
-            if (!um.Secured) return Unauthorized();
+            if (!IsAuthorized(Authorization, apiKey)) return Unauthorized();
 
             var priceList = await _service.GetMaintenancePriceListAsync(pricingLevel);
             return Ok(priceList);

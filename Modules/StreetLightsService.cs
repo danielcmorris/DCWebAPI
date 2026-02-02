@@ -18,13 +18,13 @@ public class StreetLightsService
     private const string MaintenancePricingTableId = "bjrvqd35a";  // Maintenance Pricing Table
     private const string DivisionsTableId = "bmwe2vm9x";           // Customer Division Names table
     private const string TicketsTableId = "bjrvqd33t";             // Tickets table
-    private const string LaborLineItemsTableId = "bjrvqd34d";      // Labor Line Items table
-    private const string LaborPricingTableId = "bjrvqd34e";        // Labor Pricing table
-    private const string MaterialLineItemsTableId = "bjrvqd34f";   // Material Line Items table
-    private const string MaterialPricingTableId = "bjrvqd34g";     // Material Pricing table
-    private const string EquipmentLineItemsTableId = "bjrvqd34h";  // Equipment Line Items table
-    private const string EquipmentPricingTableId = "bjrvqd34i";    // Equipment Pricing table
-    private const string TeamMembersTableId = "bjrvqd34j";         // Team Members table
+    private const string LaborLineItemsTableId = "bjrvqd34z";      // Labor Line Items table
+    private const string LaborPricingTableId = "bjrvqd346";        // Labor Pricing table
+    private const string MaterialLineItemsTableId = "bjrvqd34t";   // Material Line Items table
+    private const string MaterialPricingTableId = "bjrvqd343";     // Material Pricing table
+    private const string EquipmentLineItemsTableId = "bjrvqd34w";  // Equipment Line Items table
+    private const string EquipmentPricingTableId = "bjrvqd347";    // Equipment Pricing table
+    private const string TeamMembersTableId = "bjrvqd337";         // Team Members table
 
     // Field IDs for Customers table
     private static class CustomerFields
@@ -63,43 +63,47 @@ public class StreetLightsService
     }
 
     // Field IDs for Tickets table
+    // Note: Field IDs verified against actual QuickBase schema 2026-02-02
     private static class TicketFields
     {
         public const int RecordId = 3;
-        public const int TicketId = 6;
+        public const int TicketId = 27;           // Ticket ID (e.g., SL-022640)
         public const int CustomerName = 18;
         public const int CompletionDate = 45;
         public const int DoNotReport = 210;
         public const int DivisionId = 212;
-        public const int JobNumber = 7;
-        public const int CallerName = 19;      // Caller Name (Calculated)
-        public const int CallerType = 20;
-        public const int FixtureType = 21;
-        public const int StreetLightNumber = 22;
-        public const int AddressCalc = 23;
-        public const int CrossStreet = 24;
+        public const int ServiceType = 7;         // Service Type (Routine, Emergency Response, etc.)
+        public const int CallerName = 99;         // Caller Name (text field)
+        public const int CallerType = 21;         // Caller Type
+        public const int FixtureType = 105;       // Fixture Type (lookup from location)
+        public const int StreetLightNumber = 151; // Street Light # (text field)
+        public const int AddressCalc = 201;       // Address (text-formula)
+        public const int CrossStreet = 150;       // Cross Street (text field)
         public const int DateTimeOpened = 25;
-        public const int ServiceType = 26;
-        public const int ProblemType = 27;
-        public const int Details = 28;
-        public const int NotBillable = 29;
-        public const int BillableOverride = 30;
-        public const int StartDate = 31;
-        public const int StartTime = 32;
+        public const int JobNumber = 119;         // Job #
+        public const int ProblemType = 8;         // Problem Type
+        public const int Details = 10;            // Details (text-multi-line)
+        public const int NotBillable = 167;       // Not Billable (checkbox)
+        public const int BillableOverride = 204;  // Billable Override (checkbox)
+        public const int StartDate = 43;          // Start Date (date)
+        public const int StartTime = 44;          // Start Time (time-of-day)
         public const int CompletionTime = 46;
-        public const int CompletedBy = 47;
-        public const int Analysis = 48;
+        public const int CompletedBy = 56;        // Completed By (user field - technician)
+        public const int Analysis = 16;           // Analysis (text-multi-line)
     }
 
     // Field IDs for Labor Line Items table
+    // Verified against QuickBase schema 2025-05-31
     private static class LaborFields
     {
         public const int RecordId = 3;
-        public const int RelatedTicket = 11;
-        public const int TeamMember = 6;
+        public const int Date = 6;
         public const int Hours = 7;
         public const int TypeOfHours = 8;
-        public const int TypeOfLabor = 9;
+        public const int TeamMember = 9;           // User field
+        public const int RelatedTicket = 10;       // Numeric FK to Tickets table
+        public const int TicketId = 11;            // Text lookup of Ticket ID
+        public const int TypeOfLabor = 12;         // Electrician, Laborer, etc.
     }
 
     // Field IDs for Labor Pricing table
@@ -131,19 +135,20 @@ public class StreetLightsService
     private static class MaterialPricingFields
     {
         public const int RecordId = 3;
-        public const int ItemId = 27;
-        public const int PricingGroup = 14;
-        public const int SellPrice = 6;
-        public const int LumpSum = 7;
+        public const int ItemId = 27;           // Item ID (e.g., 1201007001)
+        public const int PricingGroup = 14;     // Group Pricing Level (A, B, E, etc.)
+        public const int SellPrice = 8;         // Sell Price (currency)
+        public const int LumpSum = 9;           // Related Pricing Level (used for lump sum indicator)
     }
 
     // Field IDs for Equipment Line Items table
+    // Verified against QuickBase schema 2026-02-02
     private static class EquipmentFields
     {
         public const int RecordId = 3;
-        public const int RelatedTicket = 11;
-        public const int Equipment = 6;
-        public const int Hours = 7;
+        public const int Hours = 6;               // Hours (numeric)
+        public const int RelatedTicket = 11;      // Ticket ID (text lookup, e.g., "SL-022640")
+        public const int Equipment = 9;           // Equipment (text lookup - equipment name)
     }
 
     // Field IDs for Equipment Pricing table
@@ -344,7 +349,7 @@ public class StreetLightsService
                 CustomerFields.CustomerName,
                 CustomerFields.GroupPricingLevel
             },
-            where = $"{{'{CustomerFields.CustomerName}'.EX.'{EscapeQueryValue(customerName)}'}}",
+            where = $"{{{CustomerFields.CustomerName}.EX.'{EscapeQueryValue(customerName)}'}}",
             options = new QBQueryOptions { top = 1 }
         };
 
@@ -376,7 +381,7 @@ public class StreetLightsService
                 MaintenancePricingFields.ServiceType,
                 MaintenancePricingFields.MaintenancePrice
             },
-            where = $"{{'{MaintenancePricingFields.ServiceType}'.EX.'{EscapeQueryValue(pricingLevel)}'}}",
+            where = $"{{{MaintenancePricingFields.ServiceType}.EX.'{EscapeQueryValue(pricingLevel)}'}}",
             options = new QBQueryOptions { top = 500 }
         };
 
@@ -428,11 +433,11 @@ public class StreetLightsService
         string whereClause;
         if (!string.IsNullOrEmpty(divisionId))
         {
-            whereClause = $"{{'{LocationFields.CustomerName}'.EX.'{EscapeQueryValue(customerName)}'}}AND{{'{LocationFields.DivisionId}'.EX.'{divisionId}'}}AND{{'{LocationFields.FixtureQuantity}'.GT.'0'}}";
+            whereClause = $"{{{LocationFields.CustomerName}.EX.'{EscapeQueryValue(customerName)}'}}AND{{{LocationFields.DivisionId}.EX.'{divisionId}'}}AND{{{LocationFields.FixtureQuantity}.GT.'0'}}";
         }
         else
         {
-            whereClause = $"{{'{LocationFields.CustomerName}'.EX.'{EscapeQueryValue(customerName)}'}}AND{{'{LocationFields.FixtureQuantity}'.XEX.'0'}}AND{{'{LocationFields.FixtureType}'.XEX.''}}";
+            whereClause = $"{{{LocationFields.CustomerName}.EX.'{EscapeQueryValue(customerName)}'}}AND{{{LocationFields.FixtureQuantity}.XEX.'0'}}AND{{{LocationFields.FixtureType}.XEX.''}}";
         }
 
         var query = new QBQuery
@@ -496,7 +501,7 @@ public class StreetLightsService
                 DivisionFields.CustomerLink,
                 DivisionFields.DivisionName
             },
-            where = $"{{'{DivisionFields.CustomerLink}'.EX.'{EscapeQueryValue(customerName)}'}}",
+            where = $"{{{DivisionFields.CustomerLink}.EX.'{EscapeQueryValue(customerName)}'}}",
             options = new QBQueryOptions { top = 100 }
         };
 
@@ -525,7 +530,7 @@ public class StreetLightsService
     public byte[] GenerateFixtureBillingPdf(FixtureBillingResponse data)
     {
         using var doc = new Doc();
-        doc.HtmlOptions.Engine = EngineType.Chrome86;
+        doc.HtmlOptions.Engine = EngineType.MSHtml;
 
         // Set up page
         doc.MediaBox.String = "A4";
@@ -758,15 +763,15 @@ public class StreetLightsService
         var qb = new QuickBaseConnector(_settings);
         var tickets = new List<TicketData>();
 
-        // Build where clause
+        // Build where clause (field IDs should not be quoted)
         string whereClause;
         if (!string.IsNullOrEmpty(divisionId))
         {
-            whereClause = $"{{'{TicketFields.CustomerName}'.EX.'{EscapeQueryValue(customerName)}'}}AND{{'{TicketFields.CompletionDate}'.GTE.'{startDate:yyyy-MM-dd}'}}AND{{'{TicketFields.CompletionDate}'.LTE.'{endDate:yyyy-MM-dd}'}}AND{{'{TicketFields.DivisionId}'.EX.'{divisionId}'}}AND{{'{TicketFields.DoNotReport}'.EX.'0'}}";
+            whereClause = $"{{{TicketFields.CustomerName}.EX.'{EscapeQueryValue(customerName)}'}}AND{{{TicketFields.CompletionDate}.GTE.'{startDate:yyyy-MM-dd}'}}AND{{{TicketFields.CompletionDate}.LTE.'{endDate:yyyy-MM-dd}'}}AND{{{TicketFields.DivisionId}.EX.'{divisionId}'}}AND{{{TicketFields.DoNotReport}.EX.'0'}}";
         }
         else
         {
-            whereClause = $"{{'{TicketFields.CustomerName}'.EX.'{EscapeQueryValue(customerName)}'}}AND{{'{TicketFields.CompletionDate}'.GTE.'{startDate:yyyy-MM-dd}'}}AND{{'{TicketFields.CompletionDate}'.LTE.'{endDate:yyyy-MM-dd}'}}AND{{'{TicketFields.DoNotReport}'.EX.'0'}}";
+            whereClause = $"{{{TicketFields.CustomerName}.EX.'{EscapeQueryValue(customerName)}'}}AND{{{TicketFields.CompletionDate}.GTE.'{startDate:yyyy-MM-dd}'}}AND{{{TicketFields.CompletionDate}.LTE.'{endDate:yyyy-MM-dd}'}}AND{{{TicketFields.DoNotReport}.EX.'0'}}";
         }
 
         var query = new QBQuery
@@ -859,13 +864,13 @@ public class StreetLightsService
             select = new List<int>
             {
                 LaborFields.RecordId,
-                LaborFields.RelatedTicket,
+                LaborFields.TicketId,
                 LaborFields.TeamMember,
                 LaborFields.Hours,
                 LaborFields.TypeOfHours,
                 LaborFields.TypeOfLabor
             },
-            where = $"{{'{LaborFields.RelatedTicket}'.EX.'{EscapeQueryValue(ticketId)}'}}",
+            where = $"{{{LaborFields.TicketId}.EX.'{EscapeQueryValue(ticketId)}'}}",
             options = new QBQueryOptions { top = 100 }
         };
 
@@ -876,14 +881,18 @@ public class StreetLightsService
             foreach (var record in result.data)
             {
                 JObject obj = record;
-                var teamMemberId = GetStringValue(obj, LaborFields.TeamMember);
+                // TeamMember is a user field - extract name from the object
+                var teamMemberName = GetUserNameValue(obj, LaborFields.TeamMember);
                 var typeOfHours = GetStringValue(obj, LaborFields.TypeOfHours);
                 var typeOfLabor = GetStringValue(obj, LaborFields.TypeOfLabor);
+
+                _logger.LogInformation("Labor item: TicketId={TicketId}, TypeOfLabor={TypeOfLabor}, TypeOfHours={TypeOfHours}, Hours={Hours}",
+                    ticketId, typeOfLabor, typeOfHours, GetDecimalValue(obj, LaborFields.Hours));
 
                 var labor = new LaborLineItem
                 {
                     TicketId = ticketId,
-                    Technician = GetTechnicianName(technicians, teamMemberId),
+                    Technician = teamMemberName,
                     Hours = GetDecimalValue(obj, LaborFields.Hours),
                     TypeOfHours = typeOfHours,
                     TypeOfLabor = typeOfLabor,
@@ -921,7 +930,7 @@ public class StreetLightsService
                 MaterialFields.NonInventorySalePrice,
                 MaterialFields.ItemIdListPrice
             },
-            where = $"{{'{MaterialFields.RelatedTicket}'.EX.'{EscapeQueryValue(ticketId)}'}}",
+            where = $"{{{MaterialFields.RelatedTicket}.EX.'{EscapeQueryValue(ticketId)}'}}",
             options = new QBQueryOptions { top = 100 }
         };
 
@@ -987,7 +996,7 @@ public class StreetLightsService
                 EquipmentFields.Equipment,
                 EquipmentFields.Hours
             },
-            where = $"{{'{EquipmentFields.RelatedTicket}'.EX.'{EscapeQueryValue(ticketId)}'}}",
+            where = $"{{{EquipmentFields.RelatedTicket}.EX.'{EscapeQueryValue(ticketId)}'}}",
             options = new QBQueryOptions { top = 100 }
         };
 
@@ -1027,20 +1036,31 @@ public class StreetLightsService
             from = LaborPricingTableId,
             select = new List<int>
             {
+                LaborPricingFields.Customer,
+                LaborPricingFields.TypeOfLabor,
+                LaborPricingFields.TypeOfHours,
                 LaborPricingFields.LaborPrice
             },
-            where = $"{{'{LaborPricingFields.Customer}'.EX.'{EscapeQueryValue(customerName)}'}}AND{{'{LaborPricingFields.TypeOfLabor}'.EX.'{EscapeQueryValue(typeOfLabor)}'}}AND{{'{LaborPricingFields.TypeOfHours}'.EX.'{EscapeQueryValue(typeOfHours)}'}}",
+            where = $"{{{LaborPricingFields.Customer}.EX.'{EscapeQueryValue(customerName)}'}}AND{{{LaborPricingFields.TypeOfLabor}.EX.'{EscapeQueryValue(typeOfLabor)}'}}AND{{{LaborPricingFields.TypeOfHours}.EX.'{EscapeQueryValue(typeOfHours)}'}}",
             options = new QBQueryOptions { top = 1 }
         };
+
+        _logger.LogInformation("GetLaborRateAsync: Customer={Customer}, TypeOfLabor={TypeOfLabor}, TypeOfHours={TypeOfHours}",
+            customerName, typeOfLabor, typeOfHours);
 
         var result = await qb.Query(query);
 
         if (result?.data != null && result.data.Count > 0)
         {
             JObject obj = result.data[0];
-            return GetDecimalValue(obj, LaborPricingFields.LaborPrice);
+            var rate = GetDecimalValue(obj, LaborPricingFields.LaborPrice);
+            _logger.LogInformation("GetLaborRateAsync: Found rate {Rate} for {Customer}/{TypeOfLabor}/{TypeOfHours}",
+                rate, customerName, typeOfLabor, typeOfHours);
+            return rate;
         }
 
+        _logger.LogWarning("GetLaborRateAsync: No labor pricing found for {Customer}/{TypeOfLabor}/{TypeOfHours}",
+            customerName, typeOfLabor, typeOfHours);
         return 0;
     }
 
@@ -1059,7 +1079,7 @@ public class StreetLightsService
                 MaterialPricingFields.SellPrice,
                 MaterialPricingFields.LumpSum
             },
-            where = $"{{'{MaterialPricingFields.ItemId}'.EX.'{EscapeQueryValue(itemId)}'}}AND{{'{MaterialPricingFields.PricingGroup}'.EX.'{EscapeQueryValue(pricingLevel)}'}}",
+            where = $"{{{MaterialPricingFields.ItemId}.EX.'{EscapeQueryValue(itemId)}'}}AND{{{MaterialPricingFields.PricingGroup}.EX.'{EscapeQueryValue(pricingLevel)}'}}",
             options = new QBQueryOptions { top = 1 }
         };
 
@@ -1100,7 +1120,7 @@ public class StreetLightsService
             {
                 EquipmentPricingFields.EquipmentRate
             },
-            where = $"{{'{EquipmentPricingFields.Customer}'.EX.'{EscapeQueryValue(customerName)}'}}AND{{'{EquipmentPricingFields.Equipment}'.EX.'{EscapeQueryValue(equipmentName)}'}}",
+            where = $"{{{EquipmentPricingFields.Customer}.EX.'{EscapeQueryValue(customerName)}'}}AND{{{EquipmentPricingFields.Equipment}.EX.'{EscapeQueryValue(equipmentName)}'}}",
             options = new QBQueryOptions { top = 1 }
         };
 
@@ -1193,7 +1213,7 @@ public class StreetLightsService
     public byte[] GenerateTicketBillingPdf(TicketBillingResponse data)
     {
         using var doc = new Doc();
-        doc.HtmlOptions.Engine = EngineType.Chrome86;
+        doc.HtmlOptions.Engine = EngineType.MSHtml;
 
         // Set up page
         doc.MediaBox.String = "A4";
@@ -1434,6 +1454,27 @@ public class StreetLightsService
 
         var valueToken = field["value"];
         return valueToken?.ToString() ?? string.Empty;
+    }
+
+    private static string GetUserNameValue(JObject obj, int fieldId)
+    {
+        var field = obj.GetValue(fieldId.ToString());
+        if (field == null) return string.Empty;
+
+        var valueToken = field["value"];
+        if (valueToken == null) return string.Empty;
+
+        // User fields return an object with {email, id, name}
+        if (valueToken is JObject userObj)
+        {
+            var name = userObj["name"]?.ToString();
+            if (!string.IsNullOrEmpty(name)) return name;
+
+            var email = userObj["email"]?.ToString();
+            if (!string.IsNullOrEmpty(email)) return email;
+        }
+
+        return valueToken.ToString();
     }
 
     private static decimal GetDecimalValue(JObject obj, int fieldId)

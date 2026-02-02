@@ -6,6 +6,10 @@
 
 # HIDE settings
 appsettings.json
+appsettings.*.json
+
+# Claude context files (large OpenAPI specs can be re-downloaded)
+.claude/*.json
 
 # User-specific files
 *.rsuser

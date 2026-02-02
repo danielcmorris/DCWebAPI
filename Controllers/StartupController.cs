@@ -1,65 +1,31 @@
 ﻿using DCElectricWebAPI.Models;
 using DCElectricWebAPI.Modules;
-using Intuit.QuickBase.Client;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
 namespace DCElectricWebAPI.Controllers
 {
+    /// <summary>
+    /// DEPRECATED: This controller used the legacy Intuit QuickBase SDK.
+    /// Use the REST API via QuickBaseConnector.Query() instead.
+    /// TODO: Refactor to use REST API if this functionality is still needed.
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
+    [Obsolete("This controller used the deprecated Intuit QuickBase SDK. Needs refactoring to use REST API.")]
     public class StartupController : ControllerBase
     {
         IOptions<QuickBaseSettings> _settings;
 
-
-        public StartupController(IOptions<QuickBaseSettings> options) {
-
+        public StartupController(IOptions<QuickBaseSettings> options)
+        {
             _settings = options;
-
         }
 
-        // appJL = getQBApp(2)
         [HttpGet]
-
-        public async Task<IActionResult> Get() 
+        public IActionResult Get()
         {
-          
-            //Variables
-            string strTableId = "_DBID_JOBS";
-            int intDtSize = 0;
-            int intCtr = 0;
-
-
-          //  DataTable dtJobs = dsJobs.Tables["Jobs_List"];
-
-            var qbc = new QuickBaseConnector(_settings);
-            var appJL = qbc.getQBApp(2);
-            Dictionary<string, Intuit.QuickBase.Client.IQTable> dictTables = appJL.GetTables();
-            intDtSize = dictTables.Count;
-            for (intCtr = 0; intCtr < intDtSize; intCtr++)
-            {
-                switch (dictTables.ElementAt(intCtr).Value.ToString())
-                {
-                    case "Jobs":
-                        strTableId = dictTables.ElementAt(intCtr).Key.ToString();
-                        break;
-                    default:
-                        break;
-                }//end switch
-            }//end for
-
-            // gets the table definition
-            var vJobsTable = appJL.GetTable(strTableId);
-
-            // query for jobs to purge
-            Query qJobs = new Query();
-            string jobNumber = "C2637";
-            QueryStrings getJob = new QueryStrings(7, ComparisonOperator.CT, jobNumber, LogicalOperator.NONE);  //3 is "record ID#"  7 is jobnumber
-            qJobs.Add(getJob);
-            vJobsTable.Query(qJobs);
-            
-            return Ok(vJobsTable);
+            return BadRequest("This endpoint is deprecated. The legacy QuickBase SDK has been removed. Please use the REST API endpoints instead.");
         }
     }
 }

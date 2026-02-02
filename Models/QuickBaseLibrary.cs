@@ -75,6 +75,26 @@ namespace DCElectricWebAPI.Models
          
         }
 
+        /// <summary>
+        /// Detailed field information returned from GET /fields endpoint
+        /// </summary>
+        public class QBFieldDetails
+        {
+            public int id { get; set; }
+            public string label { get; set; }
+            public string fieldType { get; set; }
+            public string mode { get; set; }
+            public bool appearsByDefault { get; set; }
+            public bool findEnabled { get; set; }
+            public bool noWrap { get; set; }
+            public bool bold { get; set; }
+            public bool required { get; set; }
+            public bool unique { get; set; }
+            public string fieldHelp { get; set; }
+            public bool audited { get; set; }
+            public Dictionary<string, object> properties { get; set; }
+        }
+
        
         public class QBResultSet
         {
