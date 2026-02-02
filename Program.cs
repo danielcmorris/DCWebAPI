@@ -30,6 +30,9 @@ builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<Connections>>
 // Register AzureBlobService in DI
 builder.Services.AddSingleton<AzureBlobService>();
 
+// Register StreetLightsService in DI
+builder.Services.AddScoped<StreetLightsService>();
+
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -44,6 +47,7 @@ builder.Services.AddCors(options =>
         builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
         // You can further restrict origins if needed:
         builder.WithOrigins("http://localhost:4200");
+        builder.WithOrigins("http://localhost:4210");
         builder.WithOrigins("https://dcelectricgroup.net");
         builder.WithOrigins("https://ui.dcelectricgroup.net");
         builder.WithOrigins("https://www.dcelectricgroup.net");
