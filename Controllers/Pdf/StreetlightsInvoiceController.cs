@@ -178,7 +178,7 @@ public class StreetlightsInvoiceController : ControllerBase
                 // Generate filename using report naming convention (include Fixture to avoid collision with Tickets)
                 string strStart = $"{task.Request.StartDate.Year}{task.Request.StartDate.Month:00}{task.Request.StartDate.Day:00}_";
                 string strEnd = $"{task.Request.EndDate.Year}{task.Request.EndDate.Month:00}{task.Request.EndDate.Day:00}";
-                string fileName = $"Fixture_{task.Request.CustomerName}_{strStart}_{strEnd}.pdf";
+                string fileName = $"{task.Request.CustomerName}_{strStart}_{strEnd}.pdf";
 
                 // Upload to Azure
                 string blobUrl = await _blobService.UploadFileAsync(pdfBytes, fileName, "streetlights");
@@ -238,7 +238,7 @@ public class StreetlightsInvoiceController : ControllerBase
                 // Generate filename using report naming convention (include Tickets to avoid collision with Fixture)
                 string strStart = $"{task.Request.StartDate.Year}{task.Request.StartDate.Month:00}{task.Request.StartDate.Day:00}_";
                 string strEnd = $"{task.Request.EndDate.Year}{task.Request.EndDate.Month:00}{task.Request.EndDate.Day:00}";
-                string fileName = $"Tickets_{task.Request.CustomerName}_{strStart}_{strEnd}.pdf";
+                string fileName = $"{task.Request.CustomerName}_{strStart}_{strEnd}.pdf";
 
                 // Upload to Azure
                 string blobUrl = await _blobService.UploadFileAsync(pdfBytes, fileName, "streetlights");
@@ -301,7 +301,7 @@ public class StreetlightsInvoiceController : ControllerBase
                     CreatedByID = userId,
                     GenerationStatus = "In Progress",
                     CreatedDate = DateTime.UtcNow,
-                    ReportName = $"Fixture_{request.CustomerName}_{strStart}_{strEnd}"
+                    ReportName = $"{request.CustomerName}_{strStart}_{strEnd}"
                 };
 
                 var createdReport = await AddReportAsync(report);
@@ -378,7 +378,7 @@ public class StreetlightsInvoiceController : ControllerBase
                     CreatedByID = userId,
                     GenerationStatus = "In Progress",
                     CreatedDate = DateTime.UtcNow,
-                    ReportName = $"Tickets_{request.CustomerName}_{strStart}_{strEnd}"
+                    ReportName = $"{request.CustomerName}_{strStart}_{strEnd}"
                 };
 
                 var createdReport = await AddReportAsync(report);
