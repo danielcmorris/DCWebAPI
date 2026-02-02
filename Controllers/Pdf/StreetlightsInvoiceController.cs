@@ -9,6 +9,7 @@ namespace DCElectricWebAPI.Controllers.Pdf;
 public class StreetlightsInvoiceController : ControllerBase
 {
     private readonly StreetLightsService _service;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly AzureBlobService _blobService;
     private readonly ILogger<StreetlightsInvoiceController> _logger;
 
@@ -17,10 +18,12 @@ public class StreetlightsInvoiceController : ControllerBase
 
     public StreetlightsInvoiceController(
         StreetLightsService service,
+        IServiceScopeFactory scopeFactory,
         AzureBlobService blobService,
         ILogger<StreetlightsInvoiceController> logger)
     {
         _service = service;
+        _scopeFactory = scopeFactory;
         _blobService = blobService;
         _logger = logger;
     }
@@ -56,150 +59,355 @@ public class StreetlightsInvoiceController : ControllerBase
     }
 
     /// <summary>
-    /// Get fixture billing data for a customer
+    /// Get user from session ID
     /// </summary>
-    /// <param name="details">If true (default), returns all individual locations. If false, aggregates by fixture type and price.</param>
-    /// <param name="format">Output format: "json" (default), "pdf", or "store" (uploads PDF to Azure and returns signed URL)</param>
-    /// <param name="apiKey">Optional API key for bypass auth</param>
-    [HttpPost("fixture")]
-    public async Task<IActionResult> GetFixtureBillingData(
-        [FromHeader] string? Authorization,
-        [FromBody] FixtureBillingRequest request,
-        [FromQuery] bool details = true,
-        [FromQuery] string format = "json",
-        [FromQuery] string? apiKey = null)
+    private User? GetUserBySessionID(string sid)
     {
-        try
+        string sql = $"SELECT * FROM [dbo].[fnSecurity_UserBySessionId]('{sid}');";
+        using (var dl = new DataLayerBase())
         {
-            if (!IsAuthorized(Authorization, apiKey)) return Unauthorized();
-
-            _logger.LogInformation("Getting fixture billing data for customer: {Customer}, details: {Details}, format: {Format}",
-                request.CustomerName, details, format);
-
-            // For PDF/store, always use aggregated data (details=false)
-            bool useDetails = format.Equals("pdf", StringComparison.OrdinalIgnoreCase) ||
-                              format.Equals("store", StringComparison.OrdinalIgnoreCase) ? false : details;
-
-            var response = await _service.GetFixtureBillingDataAsync(request, useDetails);
-
-            // Check for errors that should return BadRequest
-            if (!string.IsNullOrEmpty(response.ErrorMessage) && response.Locations.Count == 0)
-            {
-                if (response.ErrorMessage.Contains("Could not find pricing level") ||
-                    response.ErrorMessage.Contains("No maintenance pricing found"))
-                {
-                    return BadRequest(response.ErrorMessage);
-                }
-            }
-
-            // Return PDF if requested
-            if (format.Equals("pdf", StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogInformation("Generating PDF for customer: {Customer}", request.CustomerName);
-
-                var pdfBytes = _service.GenerateFixtureBillingPdf(response);
-
-                // Generate filename
-                string safeCustomerName = string.Join("_", request.CustomerName.Split(Path.GetInvalidFileNameChars()));
-                string fileName = $"Fixture_{safeCustomerName}_{request.StartDate:M_d}_{request.EndDate:M-d}_{request.EndDate:yyyy}.pdf";
-
-                return File(pdfBytes, "application/pdf", fileName);
-            }
-
-            // Upload PDF to Azure and return signed URL if "store" is requested
-            if (format.Equals("store", StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogInformation("Generating and storing PDF for customer: {Customer}", request.CustomerName);
-
-                var pdfBytes = _service.GenerateFixtureBillingPdf(response);
-
-                // Generate filename
-                string safeCustomerName = string.Join("_", request.CustomerName.Split(Path.GetInvalidFileNameChars()));
-                string fileName = $"Fixture_{safeCustomerName}_{request.StartDate:M_d}_{request.EndDate:M-d}_{request.EndDate:yyyy}.pdf";
-
-                // Upload to Azure and get SAS URL
-                string sasUrl = await _blobService.UploadFileAndGetSasUrlAsync(pdfBytes, fileName, "streetlights");
-
-                _logger.LogInformation("Stored fixture PDF for {Customer} at {Url}", request.CustomerName, sasUrl);
-
-                return Ok(new { url = sasUrl, fileName = fileName });
-            }
-
-            return Ok(response);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting fixture billing data for {Customer}", request.CustomerName);
-            return StatusCode(500, $"Error retrieving fixture data: {ex.Message}");
+            var userSet = dl.Query<User>(sql);
+            return userSet.FirstOrDefault();
         }
     }
 
     /// <summary>
-    /// Get ticket billing data for a customer
+    /// Get user ID from authorization header, returns 0 for API key auth
     /// </summary>
-    /// <param name="format">Output format: "json" (default), "pdf", or "store" (uploads PDF to Azure and returns signed URL)</param>
-    /// <param name="apiKey">Optional API key for bypass auth</param>
-    [HttpPost("tickets")]
-    public async Task<IActionResult> GetTicketBillingData(
+    private int GetUserId(string? authorization)
+    {
+        if (string.IsNullOrEmpty(authorization) || !authorization.StartsWith("Bearer "))
+            return 0;
+
+        var sid = authorization.Substring("Bearer ".Length).Trim();
+        var user = GetUserBySessionID(sid);
+        return user?.UserId ?? 0;
+    }
+
+    #region Database Methods
+
+    private async Task<Report> AddReportAsync(Report report)
+    {
+        var sql = @"
+            INSERT INTO Report (CustomerName, StartDate, EndDate, CreatedByID, GenerationStatus, ReportName, ReportType, StrButton, BlobURL, CreatedDate, UpdatedDate)
+            OUTPUT INSERTED.ReportId
+            VALUES (@CustomerName, @StartDate, @EndDate, @CreatedByID, @GenerationStatus, @ReportName, @ReportType, @StrButton, @BlobURL, GETDATE(), GETDATE());";
+
+        using (var dl = new DataLayerBase())
+        {
+            var reportId = await dl.QuerySingleAsync<Guid>(sql, new
+            {
+                report.CustomerName,
+                report.StartDate,
+                report.EndDate,
+                report.CreatedByID,
+                report.GenerationStatus,
+                report.ReportName,
+                report.ReportType,
+                report.StrButton,
+                report.BlobURL
+            });
+
+            report.ReportID = reportId;
+            report.CreatedDate = DateTime.UtcNow;
+            return report;
+        }
+    }
+
+    private async Task UpdateReportAsync(Guid reportId, string status, int updateById, string? blobUrl = null, bool isDeleted = false, string? message = null)
+    {
+        var sql = @"
+            UPDATE Report
+            SET GenerationStatus = @GenerationStatus,
+                BlobURL = @BlobURL,
+                IsDeleted = @IsDeleted,
+                Message = @Message,
+                UpdatedDate = GETDATE(),
+                UpdatedByID = @UpdatedByID
+            WHERE ReportID = @ReportID;";
+
+        using (var dl = new DataLayerBase())
+        {
+            await dl.ExecuteAsync(sql, new
+            {
+                GenerationStatus = status,
+                BlobURL = blobUrl,
+                IsDeleted = isDeleted,
+                Message = message,
+                ReportID = reportId,
+                UpdatedByID = updateById
+            });
+        }
+    }
+
+    #endregion
+
+    #region Background Processing
+
+    /// <summary>
+    /// Process fixture reports in the background
+    /// </summary>
+    private async Task ProcessFixtureReportsAsync(List<ReportTask> reportTasks, int userId)
+    {
+        // Create a new scope for the background task to safely use scoped services
+        using var scope = _scopeFactory.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<StreetLightsService>();
+
+        foreach (var task in reportTasks)
+        {
+            try
+            {
+                _logger.LogInformation("Processing fixture report for {Customer}, ReportID: {ReportId}",
+                    task.Request.CustomerName, task.ReportId);
+
+                // Build the fixture billing data
+                var response = await service.GetFixtureBillingDataAsync(task.Request, details: false);
+
+                if (!string.IsNullOrEmpty(response.ErrorMessage) && response.Locations.Count == 0)
+                {
+                    await UpdateReportAsync(task.ReportId, "Failed", userId, message: response.ErrorMessage);
+                    continue;
+                }
+
+                // Generate PDF
+                var pdfBytes = service.GenerateFixtureBillingPdf(response);
+
+                // Generate filename using report naming convention (include Fixture to avoid collision with Tickets)
+                string strStart = $"{task.Request.StartDate.Year}{task.Request.StartDate.Month:00}{task.Request.StartDate.Day:00}_";
+                string strEnd = $"{task.Request.EndDate.Year}{task.Request.EndDate.Month:00}{task.Request.EndDate.Day:00}";
+                string fileName = $"Fixture_{task.Request.CustomerName}_{strStart}_{strEnd}.pdf";
+
+                // Upload to Azure
+                string blobUrl = await _blobService.UploadFileAsync(pdfBytes, fileName, "streetlights");
+
+                // Update report status to completed/uploaded
+                await UpdateReportAsync(task.ReportId, "Uploaded", userId, blobUrl);
+
+                _logger.LogInformation("Completed fixture report for {Customer}, ReportID: {ReportId}",
+                    task.Request.CustomerName, task.ReportId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to process fixture report for {Customer}, ReportID: {ReportId}",
+                    task.Request.CustomerName, task.ReportId);
+                await UpdateReportAsync(task.ReportId, "Failed", userId, message: ex.Message);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Process ticket reports in the background
+    /// </summary>
+    private async Task ProcessTicketReportsAsync(List<ReportTask> reportTasks, int userId)
+    {
+        // Create a new scope for the background task to safely use scoped services
+        using var scope = _scopeFactory.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<StreetLightsService>();
+
+        foreach (var task in reportTasks)
+        {
+            try
+            {
+                _logger.LogInformation("Processing ticket report for {Customer}, ReportID: {ReportId}",
+                    task.Request.CustomerName, task.ReportId);
+
+                // Build the ticket billing data
+                var ticketRequest = new TicketBillingRequest
+                {
+                    CustomerName = task.Request.CustomerName,
+                    StartDate = task.Request.StartDate,
+                    EndDate = task.Request.EndDate,
+                    DivisionId = task.Request.DivisionId,
+                    DivisionName = task.Request.DivisionName
+                };
+
+                var response = await service.GetTicketBillingDataAsync(ticketRequest);
+
+                if (!string.IsNullOrEmpty(response.ErrorMessage) && response.Tickets.Count == 0)
+                {
+                    await UpdateReportAsync(task.ReportId, "Failed", userId, message: response.ErrorMessage);
+                    continue;
+                }
+
+                // Generate PDF
+                var pdfBytes = service.GenerateTicketBillingPdf(response);
+
+                // Generate filename using report naming convention (include Tickets to avoid collision with Fixture)
+                string strStart = $"{task.Request.StartDate.Year}{task.Request.StartDate.Month:00}{task.Request.StartDate.Day:00}_";
+                string strEnd = $"{task.Request.EndDate.Year}{task.Request.EndDate.Month:00}{task.Request.EndDate.Day:00}";
+                string fileName = $"Tickets_{task.Request.CustomerName}_{strStart}_{strEnd}.pdf";
+
+                // Upload to Azure
+                string blobUrl = await _blobService.UploadFileAsync(pdfBytes, fileName, "streetlights");
+
+                // Update report status to completed/uploaded
+                await UpdateReportAsync(task.ReportId, "Uploaded", userId, blobUrl);
+
+                _logger.LogInformation("Completed ticket report for {Customer}, ReportID: {ReportId}",
+                    task.Request.CustomerName, task.ReportId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to process ticket report for {Customer}, ReportID: {ReportId}",
+                    task.Request.CustomerName, task.ReportId);
+                await UpdateReportAsync(task.ReportId, "Failed", userId, message: ex.Message);
+            }
+        }
+    }
+
+    #endregion
+
+    /// <summary>
+    /// Generate fixture billing reports for multiple customers (batch processing)
+    /// </summary>
+    /// <remarks>
+    /// Accepts an array of report requests, creates report records in the database,
+    /// starts background tasks to generate PDFs and upload to Azure, then returns
+    /// the report IDs immediately for status polling.
+    /// </remarks>
+    [HttpPost("fixture")]
+    public async Task<IActionResult> GenerateFixtureReports(
         [FromHeader] string? Authorization,
-        [FromBody] TicketBillingRequest request,
-        [FromQuery] string format = "json",
+        [FromBody] List<FixtureBillingRequest> requests,
         [FromQuery] string? apiKey = null)
     {
         try
         {
             if (!IsAuthorized(Authorization, apiKey)) return Unauthorized();
 
-            _logger.LogInformation("Getting ticket billing data for customer: {Customer}, from {Start} to {End}, format: {Format}",
-                request.CustomerName, request.StartDate, request.EndDate, format);
+            var userId = GetUserId(Authorization);
 
-            var response = await _service.GetTicketBillingDataAsync(request);
+            _logger.LogInformation("Initiating batch fixture report generation for {Count} customers", requests.Count);
 
-            // Check for errors that should return BadRequest
-            if (!string.IsNullOrEmpty(response.ErrorMessage) && response.Tickets.Count == 0)
+            var reportTasks = new List<ReportTask>();
+            var reportResponses = new List<ReportResponse>();
+
+            // Create report records for each request
+            foreach (var request in requests)
             {
-                return BadRequest(response.ErrorMessage);
+                string strStart = $"{request.StartDate.Year}{request.StartDate.Month:00}{request.StartDate.Day:00}_";
+                string strEnd = $"{request.EndDate.Year}{request.EndDate.Month:00}{request.EndDate.Day:00}";
+
+                var report = new Report
+                {
+                    CustomerName = request.CustomerName,
+                    ReportType = "Streetlight",
+                    StrButton = "Fixture",
+                    StartDate = request.StartDate,
+                    EndDate = request.EndDate,
+                    CreatedByID = userId,
+                    GenerationStatus = "In Progress",
+                    CreatedDate = DateTime.UtcNow,
+                    ReportName = $"Fixture_{request.CustomerName}_{strStart}_{strEnd}"
+                };
+
+                var createdReport = await AddReportAsync(report);
+
+                reportTasks.Add(new ReportTask
+                {
+                    ReportId = createdReport.ReportID,
+                    Request = request
+                });
+
+                reportResponses.Add(new ReportResponse
+                {
+                    ReportId = createdReport.ReportID,
+                    CustomerName = request.CustomerName,
+                    StartDate = request.StartDate,
+                    EndDate = request.EndDate,
+                    GenerationStatus = "In Progress"
+                });
+
+                _logger.LogInformation("Created fixture report record for {Customer}, ReportID: {ReportId}",
+                    request.CustomerName, createdReport.ReportID);
             }
 
-            // Return PDF if requested
-            if (format.Equals("pdf", StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogInformation("Generating Ticket PDF for customer: {Customer}", request.CustomerName);
+            // Start background processing without waiting
+            Task.Run(() => ProcessFixtureReportsAsync(reportTasks, userId));
 
-                var pdfBytes = _service.GenerateTicketBillingPdf(response);
-
-                // Generate filename
-                string safeCustomerName = string.Join("_", request.CustomerName.Split(Path.GetInvalidFileNameChars()));
-                string fileName = $"Ticket_{safeCustomerName}_{request.StartDate:M_d}_{request.EndDate:M-d}_{request.EndDate:yyyy}.pdf";
-
-                return File(pdfBytes, "application/pdf", fileName);
-            }
-
-            // Upload PDF to Azure and return signed URL if "store" is requested
-            if (format.Equals("store", StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogInformation("Generating and storing Ticket PDF for customer: {Customer}", request.CustomerName);
-
-                var pdfBytes = _service.GenerateTicketBillingPdf(response);
-
-                // Generate filename
-                string safeCustomerName = string.Join("_", request.CustomerName.Split(Path.GetInvalidFileNameChars()));
-                string fileName = $"Ticket_{safeCustomerName}_{request.StartDate:M_d}_{request.EndDate:M-d}_{request.EndDate:yyyy}.pdf";
-
-                // Upload to Azure and get SAS URL
-                string sasUrl = await _blobService.UploadFileAndGetSasUrlAsync(pdfBytes, fileName, "streetlights");
-
-                _logger.LogInformation("Stored ticket PDF for {Customer} at {Url}", request.CustomerName, sasUrl);
-
-                return Ok(new { url = sasUrl, fileName = fileName });
-            }
-
-            return Ok(response);
+            return Ok(reportResponses);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting ticket billing data for {Customer}", request.CustomerName);
-            return StatusCode(500, $"Error retrieving ticket data: {ex.Message}");
+            _logger.LogError(ex, "Error initiating batch fixture report generation");
+            return StatusCode(500, $"Error initiating report generation: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Generate ticket billing reports for multiple customers (batch processing)
+    /// </summary>
+    /// <remarks>
+    /// Accepts an array of report requests, creates report records in the database,
+    /// starts background tasks to generate PDFs and upload to Azure, then returns
+    /// the report IDs immediately for status polling.
+    /// </remarks>
+    [HttpPost("tickets")]
+    public async Task<IActionResult> GenerateTicketReports(
+        [FromHeader] string? Authorization,
+        [FromBody] List<FixtureBillingRequest> requests,
+        [FromQuery] string? apiKey = null)
+    {
+        try
+        {
+            if (!IsAuthorized(Authorization, apiKey)) return Unauthorized();
+
+            var userId = GetUserId(Authorization);
+
+            _logger.LogInformation("Initiating batch ticket report generation for {Count} customers", requests.Count);
+
+            var reportTasks = new List<ReportTask>();
+            var reportResponses = new List<ReportResponse>();
+
+            // Create report records for each request
+            foreach (var request in requests)
+            {
+                string strStart = $"{request.StartDate.Year}{request.StartDate.Month:00}{request.StartDate.Day:00}_";
+                string strEnd = $"{request.EndDate.Year}{request.EndDate.Month:00}{request.EndDate.Day:00}";
+
+                var report = new Report
+                {
+                    CustomerName = request.CustomerName,
+                    ReportType = "Streetlight",
+                    StrButton = "Tickets",
+                    StartDate = request.StartDate,
+                    EndDate = request.EndDate,
+                    CreatedByID = userId,
+                    GenerationStatus = "In Progress",
+                    CreatedDate = DateTime.UtcNow,
+                    ReportName = $"Tickets_{request.CustomerName}_{strStart}_{strEnd}"
+                };
+
+                var createdReport = await AddReportAsync(report);
+
+                reportTasks.Add(new ReportTask
+                {
+                    ReportId = createdReport.ReportID,
+                    Request = request
+                });
+
+                reportResponses.Add(new ReportResponse
+                {
+                    ReportId = createdReport.ReportID,
+                    CustomerName = request.CustomerName,
+                    StartDate = request.StartDate,
+                    EndDate = request.EndDate,
+                    GenerationStatus = "In Progress"
+                });
+
+                _logger.LogInformation("Created ticket report record for {Customer}, ReportID: {ReportId}",
+                    request.CustomerName, createdReport.ReportID);
+            }
+
+            // Start background processing without waiting
+            Task.Run(() => ProcessTicketReportsAsync(reportTasks, userId));
+
+            return Ok(reportResponses);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error initiating batch ticket report generation");
+            return StatusCode(500, $"Error initiating report generation: {ex.Message}");
         }
     }
 
@@ -271,3 +479,28 @@ public class StreetlightsInvoiceController : ControllerBase
         }
     }
 }
+
+#region Internal Models
+
+/// <summary>
+/// Internal class to track report tasks for background processing
+/// </summary>
+internal class ReportTask
+{
+    public Guid ReportId { get; set; }
+    public FixtureBillingRequest Request { get; set; } = null!;
+}
+
+/// <summary>
+/// Response model for batch report generation
+/// </summary>
+public class ReportResponse
+{
+    public Guid ReportId { get; set; }
+    public string CustomerName { get; set; } = string.Empty;
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
+    public string GenerationStatus { get; set; } = string.Empty;
+}
+
+#endregion
