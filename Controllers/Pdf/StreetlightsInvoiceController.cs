@@ -4,21 +4,24 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace DCElectricWebAPI.Controllers.Pdf;
 
-[Route("api/[controller]")]
+[Route("api/pdf/streetlights/invoice")]
 [ApiController]
-public class StreetlightsFixtureController : ControllerBase
+public class StreetlightsInvoiceController : ControllerBase
 {
     private readonly StreetLightsService _service;
-    private readonly ILogger<StreetlightsFixtureController> _logger;
+    private readonly AzureBlobService _blobService;
+    private readonly ILogger<StreetlightsInvoiceController> _logger;
 
     // API key for bypassing standard auth (for testing/internal use)
     private const string API_KEY = "dcelectric-sl-2025";
 
-    public StreetlightsFixtureController(
+    public StreetlightsInvoiceController(
         StreetLightsService service,
-        ILogger<StreetlightsFixtureController> logger)
+        AzureBlobService blobService,
+        ILogger<StreetlightsInvoiceController> logger)
     {
         _service = service;
+        _blobService = blobService;
         _logger = logger;
     }
 
@@ -56,9 +59,9 @@ public class StreetlightsFixtureController : ControllerBase
     /// Get fixture billing data for a customer
     /// </summary>
     /// <param name="details">If true (default), returns all individual locations. If false, aggregates by fixture type and price.</param>
-    /// <param name="format">Output format: "json" (default) or "pdf"</param>
+    /// <param name="format">Output format: "json" (default), "pdf", or "store" (uploads PDF to Azure and returns signed URL)</param>
     /// <param name="apiKey">Optional API key for bypass auth</param>
-    [HttpPost]
+    [HttpPost("fixture")]
     public async Task<IActionResult> GetFixtureBillingData(
         [FromHeader] string? Authorization,
         [FromBody] FixtureBillingRequest request,
@@ -73,8 +76,9 @@ public class StreetlightsFixtureController : ControllerBase
             _logger.LogInformation("Getting fixture billing data for customer: {Customer}, details: {Details}, format: {Format}",
                 request.CustomerName, details, format);
 
-            // For PDF, always use aggregated data (details=false)
-            bool useDetails = format.Equals("pdf", StringComparison.OrdinalIgnoreCase) ? false : details;
+            // For PDF/store, always use aggregated data (details=false)
+            bool useDetails = format.Equals("pdf", StringComparison.OrdinalIgnoreCase) ||
+                              format.Equals("store", StringComparison.OrdinalIgnoreCase) ? false : details;
 
             var response = await _service.GetFixtureBillingDataAsync(request, useDetails);
 
@@ -102,6 +106,25 @@ public class StreetlightsFixtureController : ControllerBase
                 return File(pdfBytes, "application/pdf", fileName);
             }
 
+            // Upload PDF to Azure and return signed URL if "store" is requested
+            if (format.Equals("store", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation("Generating and storing PDF for customer: {Customer}", request.CustomerName);
+
+                var pdfBytes = _service.GenerateFixtureBillingPdf(response);
+
+                // Generate filename
+                string safeCustomerName = string.Join("_", request.CustomerName.Split(Path.GetInvalidFileNameChars()));
+                string fileName = $"Fixture_{safeCustomerName}_{request.StartDate:M_d}_{request.EndDate:M-d}_{request.EndDate:yyyy}.pdf";
+
+                // Upload to Azure and get SAS URL
+                string sasUrl = await _blobService.UploadFileAndGetSasUrlAsync(pdfBytes, fileName, "streetlights");
+
+                _logger.LogInformation("Stored fixture PDF for {Customer} at {Url}", request.CustomerName, sasUrl);
+
+                return Ok(new { url = sasUrl, fileName = fileName });
+            }
+
             return Ok(response);
         }
         catch (Exception ex)
@@ -114,7 +137,7 @@ public class StreetlightsFixtureController : ControllerBase
     /// <summary>
     /// Get ticket billing data for a customer
     /// </summary>
-    /// <param name="format">Output format: "json" (default) or "pdf"</param>
+    /// <param name="format">Output format: "json" (default), "pdf", or "store" (uploads PDF to Azure and returns signed URL)</param>
     /// <param name="apiKey">Optional API key for bypass auth</param>
     [HttpPost("tickets")]
     public async Task<IActionResult> GetTicketBillingData(
@@ -150,6 +173,25 @@ public class StreetlightsFixtureController : ControllerBase
                 string fileName = $"Ticket_{safeCustomerName}_{request.StartDate:M_d}_{request.EndDate:M-d}_{request.EndDate:yyyy}.pdf";
 
                 return File(pdfBytes, "application/pdf", fileName);
+            }
+
+            // Upload PDF to Azure and return signed URL if "store" is requested
+            if (format.Equals("store", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation("Generating and storing Ticket PDF for customer: {Customer}", request.CustomerName);
+
+                var pdfBytes = _service.GenerateTicketBillingPdf(response);
+
+                // Generate filename
+                string safeCustomerName = string.Join("_", request.CustomerName.Split(Path.GetInvalidFileNameChars()));
+                string fileName = $"Ticket_{safeCustomerName}_{request.StartDate:M_d}_{request.EndDate:M-d}_{request.EndDate:yyyy}.pdf";
+
+                // Upload to Azure and get SAS URL
+                string sasUrl = await _blobService.UploadFileAndGetSasUrlAsync(pdfBytes, fileName, "streetlights");
+
+                _logger.LogInformation("Stored ticket PDF for {Customer} at {Url}", request.CustomerName, sasUrl);
+
+                return Ok(new { url = sasUrl, fileName = fileName });
             }
 
             return Ok(response);

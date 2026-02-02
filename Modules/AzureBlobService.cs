@@ -180,4 +180,41 @@ public class AzureBlobService
         return deleted;
     }
 
+    /// <summary>
+    /// Uploads a byte array to Azure Blob Storage and returns a SAS URL for accessing the file.
+    /// </summary>
+    /// <param name="fileBytes">The byte array containing the file data.</param>
+    /// <param name="blobName">The name of the blob (file) in Azure storage.</param>
+    /// <param name="folderName">The optional folder name to prepend to the blob name.</param>
+    /// <param name="containerName">The optional container name. Uses default if not provided.</param>
+    /// <returns>A SAS URL that provides read access to the uploaded blob.</returns>
+    public async Task<string> UploadFileAndGetSasUrlAsync(byte[] fileBytes, string blobName, string folderName = null, string containerName = null)
+    {
+        if (string.IsNullOrEmpty(containerName))
+        {
+            containerName = _containerName;
+        }
+
+        BlobContainerClient containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
+        await containerClient.CreateIfNotExistsAsync(PublicAccessType.None);
+
+        if (!string.IsNullOrEmpty(folderName))
+        {
+            blobName = $"{folderName.TrimEnd('/')}/{blobName}";
+        }
+        else if (!string.IsNullOrEmpty(_configuration["AzureBlobStorageFolderName"]))
+        {
+            blobName = $"{_configuration["AzureBlobStorageFolderName"].TrimEnd('/')}/{blobName}";
+        }
+
+        BlobClient blobClient = containerClient.GetBlobClient(blobName);
+
+        using (var memoryStream = new MemoryStream(fileBytes))
+        {
+            await blobClient.UploadAsync(memoryStream, overwrite: true);
+        }
+
+        return GenerateSasUrl(blobClient);
+    }
+
 }
