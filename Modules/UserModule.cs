@@ -7,14 +7,15 @@ namespace DCElectricWebAPI.Modules
         public bool Secured = true;
         private string SessionID;
         private User user;
-
-        public UserModule(string sid)
+        DataLayerBase _dl;
+        public UserModule(string sid, DataLayerBase dl)
         {
+            _dl = dl;
             SessionID = sid.Replace("Bearer ","") ;
-            var dl = new DataLayerBase();
+           
             user = GetUserBySessionID(SessionID);
+          
 
-            
             Secured = user.UserId>0?true:false; 
              
         }
@@ -22,11 +23,10 @@ namespace DCElectricWebAPI.Modules
         private User GetUserBySessionID(string sid)
         {
             string sql = $"SELECT * FROM  [dbo].[fnSecurity_UserBySessionId]('{SessionID}');";
-            using (var dl = new DataLayerBase())
-            {
-                var userSet = dl.Query<User>(sql);
+           
+                var userSet = _dl.Query<User>(sql);
                 return userSet.First();
-            };
+             
         }
     }
 }

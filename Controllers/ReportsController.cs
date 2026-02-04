@@ -15,18 +15,20 @@ public class ReportsController : ControllerBase
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<ReportsController> _logger;
-    public ReportsController(AzureBlobService blobService, IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<ReportsController> logger)
+    private readonly DataLayerBase _dl;
+    public ReportsController(AzureBlobService blobService, IHttpClientFactory httpClientFactory, DataLayerBase db, IConfiguration configuration, ILogger<ReportsController> logger)
     {
         _blobService = blobService;
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
         _logger = logger;
+        _dl = db;
     }
 
     [HttpPost("create")]
     public async Task<IActionResult> PostAsync([FromHeader] string Authorization, [FromBody] CustomerReportRequest customerReportRequest)
     {
-        var um = new UserModule(Authorization);
+        var um = new UserModule(Authorization, _dl);
         if (!um.Secured) return Unauthorized();
 
         var user = GetUserBySessionID(Authorization.Substring("Bearer ".Length).Trim());
@@ -86,7 +88,7 @@ public class ReportsController : ControllerBase
     [HttpPost("retry/{reportId}")]
     public async Task<IActionResult> Retry([FromHeader] string Authorization, [FromRoute] Guid reportId)
     {
-        var um = new UserModule(Authorization);
+        var um = new UserModule(Authorization, _dl);
         if (!um.Secured) return Unauthorized();
 
         var user = GetUserBySessionID(Authorization.Substring("Bearer ".Length).Trim());
@@ -145,7 +147,7 @@ public class ReportsController : ControllerBase
     [HttpGet("all/{reportType}")]
     public async Task<IActionResult> GetAllReports([FromHeader] string Authorization, [FromRoute] string reportType)
     {
-        var um = new UserModule(Authorization);
+        var um = new UserModule(Authorization, _dl);
         if (!um.Secured) return Unauthorized();
         var user = GetUserBySessionID(Authorization.Substring("Bearer ".Length).Trim());
         _logger.LogInformation("Retryiing all reports for user: {userID}", user.UserId);
@@ -157,8 +159,8 @@ public class ReportsController : ControllerBase
                             WHERE IsDeleted = 0 and ReportType = @ReportType
                             ORDER BY CreatedDate DESC";
 
-            var dl = new DataLayerBase();
-            var x = await dl.QueryAsync<Report>(sql, new
+          
+            var x = await _dl.QueryAsync<Report>(sql, new
             {
                 ReportType = reportType
             });
@@ -175,7 +177,7 @@ public class ReportsController : ControllerBase
     [HttpGet("download")]
     public async Task<IActionResult> DownloadBlob([FromHeader] string Authorization, string blobName)
     {
-        var um = new UserModule(Authorization);
+        var um = new UserModule(Authorization, _dl);
         if (!um.Secured) return Unauthorized();
 
         _logger.LogInformation("Downlloading Blob Name: {BlobName}", blobName);
@@ -202,7 +204,7 @@ public class ReportsController : ControllerBase
     [HttpPost("download-zip")]
     public async Task<IActionResult> DownloadReportsAsZip([FromHeader] string Authorization, [FromBody] List<Guid> reportIds)
     {
-        var um = new UserModule(Authorization);
+        var um = new UserModule(Authorization, _dl);
         if (!um.Secured) return Unauthorized();
 
         try
@@ -251,7 +253,7 @@ public class ReportsController : ControllerBase
     [HttpDelete("{reportId}")]
     public async Task<IActionResult> DeleteReportAsync([FromHeader] string Authorization, [FromRoute] Guid reportId)
     {
-        var um = new UserModule(Authorization);
+        var um = new UserModule(Authorization, _dl);
         if (!um.Secured) return Unauthorized();
 
         var user = GetUserBySessionID(Authorization.Substring("Bearer ".Length).Trim());
@@ -270,13 +272,14 @@ public class ReportsController : ControllerBase
                 return BadRequest(new { message = "Report is already deleted" });
             }
 
-            // Step 1: Delete the blob from Azure Blob Storage if the blob URL exists
+            // Step 1: Attempt to delete the blob from Azure Blob Storage if the blob URL exists
+            // If deletion fails (e.g., file not found), log and continue - the file is likely already gone
             if (!string.IsNullOrEmpty(report.BlobURL))
             {
                 bool isBlobDeleted = await _blobService.DeleteBlobAsync($"traffic/{report.ReportName}.pdf");
                 if (!isBlobDeleted)
                 {
-                    return Problem("Failed to delete the blob from Azure Storage", statusCode: StatusCodes.Status500InternalServerError);
+                    _logger.LogWarning("Blob not found or could not be deleted for report {ReportId}: {BlobPath}. Proceeding with database deletion.", reportId, $"traffic/{report.ReportName}.pdf");
                 }
             }
 
@@ -381,10 +384,9 @@ public class ReportsController : ControllerBase
             OUTPUT INSERTED.ReportId  -- Capture the inserted ReportId
             VALUES (@CustomerName, @StartDate, @EndDate, @CreatedByID, @GenerationStatus, @ReportName,  @ReportType, @StrButton, @BlobURL, GETDATE(),GETDATE());";
 
-        using (var dl = new DataLayerBase())
-        {
+        
             // Capture the inserted ReportId
-            var reportId = await dl.QuerySingleAsync<Guid>(sql, new
+            var reportId = await _dl.QuerySingleAsync<Guid>(sql, new
             {
                 report.CustomerName,
                 report.StartDate,
@@ -401,7 +403,7 @@ public class ReportsController : ControllerBase
             report.ReportID = reportId;
             report.CreatedDate = DateTime.UtcNow;  // Assuming it's generated during insert
             return report;
-        }
+        
     }
     private async Task OverrideReportAsync(Report report)
     {
@@ -417,17 +419,15 @@ public class ReportsController : ControllerBase
                     UpdatedByID = @CreatedByID,
                     IsDeleted = 0
                 WHERE ReportID = @ReportID;";
-
-            using (var dl = new DataLayerBase())
-            {
-                await dl.ExecuteAsync(sql, new
+ 
+                await _dl.ExecuteAsync(sql, new
                 {
                     GenerationStatus = report.GenerationStatus,
                     BlobURL = report.BlobURL,
                     CreatedByID = report.CreatedByID,
                     ReportID = report.ReportID
                 });
-            }
+             
         }
         catch (Exception ex)
         {
@@ -448,9 +448,8 @@ public class ReportsController : ControllerBase
             UpdatedByID = @UpdatedByID
         WHERE ReportID = @ReportID;";
 
-        using (var dl = new DataLayerBase())
-        {
-            await dl.ExecuteAsync(sql, new
+         
+            await _dl.ExecuteAsync(sql, new
             {
                 GenerationStatus = status,
                 BlobURL = blobUrl,
@@ -459,7 +458,7 @@ public class ReportsController : ControllerBase
                 ReportID = reportId,
                 UpdatedByID = updateById  // Assuming UserModule provides UserId
             });
-        }
+      
     }
     private async Task<Report> GetReportByIdAsync(Guid reportId)
     {
@@ -468,12 +467,11 @@ public class ReportsController : ControllerBase
             FROM Report 
             WHERE ReportId = @ReportId;";
 
-        using (var dl = new DataLayerBase())
-        {
+     
             // Fetch the report with the given ReportId
-            var report = await dl.QuerySingleOrDefaultAsync<Report>(sql, new { ReportId = reportId });
+            var report = await _dl.QuerySingleOrDefaultAsync<Report>(sql, new { ReportId = reportId });
             return report;
-        }
+       
     }
     private async Task<Report> FetchReportByCustomerAndDateAsync(string customerName, DateTime startDate, DateTime endDate)
     {
@@ -484,9 +482,8 @@ public class ReportsController : ControllerBase
         AND CAST(StartDate AS DATE) = CAST(@StartDate AS DATE)
         AND CAST(EndDate AS DATE) = CAST(@EndDate AS DATE);";  // Compare only the date portion
 
-        using (var dl = new DataLayerBase())
-        {
-            var report = await dl.QuerySingleOrDefaultAsync<Report>(sql, new
+       
+            var report = await _dl.QuerySingleOrDefaultAsync<Report>(sql, new
             {
                 CustomerName = customerName,
                 StartDate = startDate.Date,  // Pass only the date part of the provided StartDate
@@ -494,16 +491,15 @@ public class ReportsController : ControllerBase
             });
 
             return report;
-        }
+        
     }
 
     private User GetUserBySessionID(string sid)
     {
         string sql = $"SELECT * FROM  [dbo].[fnSecurity_UserBySessionId]('{sid}');";
-        using (var dl = new DataLayerBase())
-        {
-            var userSet = dl.Query<User>(sql);
+       
+            var userSet = _dl.Query<User>(sql);
             return userSet.First();
-        };
+         
     }
 }

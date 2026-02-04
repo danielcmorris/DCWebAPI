@@ -12,11 +12,18 @@ namespace DCElectricWebAPI.Controllers.Admin
     [ApiController]
     public class UserController : ControllerBase
     {
+
+
+        DataLayerBase dl;
+        public UserController(DataLayerBase _dl)
+        {
+            dl = _dl;
+        }
         [HttpGet]
         public async Task<IActionResult> Get()
         {
             string sql = "Select UserID, FirstName, LastName, Email, Phone, UserLevel,Permissions,Status from [User] Where Status<>'Deleted'";
-            var dl = new DataLayerBase();
+           
             var x = dl.Query<User>(sql);
 
             return Ok(x);
@@ -26,11 +33,10 @@ namespace DCElectricWebAPI.Controllers.Admin
         public async Task<IActionResult> GetUser(int id)
         {
             string sql = $"Select UserID, FirstName, LastName, Email, Phone, UserLevel, Permissions,Status from [User] Where Status<>'Deleted' and UserID={id}";
-            using (var dl = new DataLayerBase())
-            {
+          
                 var x = dl.Query<User>(sql);
                 return Ok(x);
-            } ;
+           
            
 
             
@@ -40,8 +46,7 @@ namespace DCElectricWebAPI.Controllers.Admin
         [HttpPost]
         public async Task<IActionResult> AddUser(User userParams, [FromQuery] string sid)
         {
-
-            var dl = new DataLayerBase();
+ 
             var sql = "uspAddUser";
 
             var parameters = new DynamicParameters();
@@ -70,8 +75,7 @@ namespace DCElectricWebAPI.Controllers.Admin
         {
 
 
-            using (var dl = new DataLayerBase())
-            {
+          
                 var sql = "uspUpdateUser";
 
                 var parameters = new DynamicParameters();
@@ -90,7 +94,7 @@ namespace DCElectricWebAPI.Controllers.Admin
 
 
                 return Ok(user);
-            }
+             
         }
 
     }

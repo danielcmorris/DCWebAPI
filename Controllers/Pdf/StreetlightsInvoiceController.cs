@@ -12,7 +12,7 @@ public class StreetlightsInvoiceController : ControllerBase
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly AzureBlobService _blobService;
     private readonly ILogger<StreetlightsInvoiceController> _logger;
-
+    private readonly DataLayerBase _dl;
     // API key for bypassing standard auth (for testing/internal use)
     private const string API_KEY = "dcelectric-sl-2025";
 
@@ -20,12 +20,15 @@ public class StreetlightsInvoiceController : ControllerBase
         StreetLightsService service,
         IServiceScopeFactory scopeFactory,
         AzureBlobService blobService,
+        DataLayerBase dl,
         ILogger<StreetlightsInvoiceController> logger)
     {
+        _dl = dl;
         _service = service;
         _scopeFactory = scopeFactory;
         _blobService = blobService;
         _logger = logger;
+        
     }
 
     /// <summary>
@@ -46,7 +49,7 @@ public class StreetlightsInvoiceController : ControllerBase
         {
             try
             {
-                var um = new UserModule(authorization);
+                var um = new UserModule(authorization, _dl);
                 return um.Secured;
             }
             catch
@@ -64,11 +67,10 @@ public class StreetlightsInvoiceController : ControllerBase
     private User? GetUserBySessionID(string sid)
     {
         string sql = $"SELECT * FROM [dbo].[fnSecurity_UserBySessionId]('{sid}');";
-        using (var dl = new DataLayerBase())
-        {
-            var userSet = dl.Query<User>(sql);
+       
+            var userSet = _dl.Query<User>(sql);
             return userSet.FirstOrDefault();
-        }
+        
     }
 
     /// <summary>
@@ -93,9 +95,8 @@ public class StreetlightsInvoiceController : ControllerBase
             OUTPUT INSERTED.ReportId
             VALUES (@CustomerName, @StartDate, @EndDate, @CreatedByID, @GenerationStatus, @ReportName, @ReportType, @StrButton, @BlobURL, @TicketCount, GETDATE(), GETDATE());";
 
-        using (var dl = new DataLayerBase())
-        {
-            var reportId = await dl.QuerySingleAsync<Guid>(sql, new
+        
+            var reportId = await _dl.QuerySingleAsync<Guid>(sql, new
             {
                 report.CustomerName,
                 report.StartDate,
@@ -112,35 +113,38 @@ public class StreetlightsInvoiceController : ControllerBase
             report.ReportID = reportId;
             report.CreatedDate = DateTime.UtcNow;
             return report;
-        }
+       
     }
 
     private async Task UpdateReportAsync(Guid reportId, string status, int updateById, string? blobUrl = null, bool isDeleted = false, string? message = null, int? ticketCount = null)
     {
-        var sql = @"
-            UPDATE Report
-            SET GenerationStatus = @GenerationStatus,
-                BlobURL = @BlobURL,
-                IsDeleted = @IsDeleted,
-                Message = @Message,
-                TicketCount = COALESCE(@TicketCount, TicketCount),
-                UpdatedDate = GETDATE(),
-                UpdatedByID = @UpdatedByID
-            WHERE ReportID = @ReportID;";
 
-        using (var dl = new DataLayerBase())
+        int del = isDeleted?1:0;
+
+        var sql = @"
+        UPDATE Report
+        SET GenerationStatus = @status,
+            BlobURL = @blobUrl,
+            IsDeleted = @isDeleted,
+            Message = @message,
+            TicketCount = COALESCE(@ticketCount, TicketCount),
+            UpdatedDate = GETDATE(),
+            UpdatedByID = @updateById
+        WHERE ReportID = @reportId";
+
+        // 2. Pass the variables in an anonymous object
+        // Dapper maps these names to the '@' parameters in your SQL
+        await _dl.ExecuteAsync(sql, new
         {
-            await dl.ExecuteAsync(sql, new
-            {
-                GenerationStatus = status,
-                BlobURL = blobUrl,
-                IsDeleted = isDeleted,
-                Message = message,
-                TicketCount = ticketCount,
-                ReportID = reportId,
-                UpdatedByID = updateById
-            });
-        }
+            reportId,
+            status,
+            updateById,
+            blobUrl,
+            isDeleted,
+            message,
+            ticketCount
+        });
+
     }
 
     #endregion

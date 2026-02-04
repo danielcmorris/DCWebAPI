@@ -4,6 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>b499e623-d7a7-45b5-9acf-7e2d9f986221</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -38,6 +39,10 @@
 
   <ItemGroup>
     <NativeLibs Remove="Modules\TicketBuilder.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="nul" />
   </ItemGroup>
 
   <!-- Legacy Intuit QuickBase SDK references removed - using REST API exclusively -->

@@ -14,14 +14,18 @@ namespace DCElectricWebAPI.Controllers
     {
         string bucket;
         string sql;
-        DefaultDataLayer dl = new DefaultDataLayer();
+        DataLayerBase _dl;
 
+         public TicketInvoiceController(DataLayerBase dl)
+        {
+            _dl= dl;
+        }
         [HttpGet]
         public async Task<IActionResult> Get(int id=0, string template="", string referenceCode = "", string sid = "")
         {
 
             /* start security and data validation */
-            var um = new UserModule(sid);
+            var um = new UserModule(sid,_dl);
             if (!um.Secured) return Unauthorized();// new HttpResponseMessage(HttpStatusCode.Unauthorized);
 
             //sql = $@"Select * from Report where ReferenceCode='" + referenceCode + "'";
@@ -35,7 +39,7 @@ namespace DCElectricWebAPI.Controllers
 
 
 
-            var isProduction = this.dl.ConnectionString.IndexOf("Production") > 0;
+            var isProduction = _dl._connectionString.IndexOf("Production") > 0;
             bucket = isProduction ? "fleet-files" : "fleet-files-dev";
             var gsm = new GoogleStorageModule();
  

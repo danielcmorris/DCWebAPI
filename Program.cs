@@ -4,6 +4,9 @@ using Microsoft.Extensions.Options;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+Console.WriteLine($"Current Environment: {builder.Environment.EnvironmentName}");
+var dd = builder.Configuration.GetConnectionString("DefaultConnection");
+Console.WriteLine($"DEBUG: The connection string being used is: {dd}");
 
 
 IConfiguration configuration = new ConfigurationBuilder()
@@ -30,8 +33,11 @@ builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<Connections>>
 // Register AzureBlobService in DI
 builder.Services.AddSingleton<AzureBlobService>();
 
+builder.Services.AddScoped<DataLayerBase>();
 // Register StreetLightsService in DI
 builder.Services.AddScoped<StreetLightsService>();
+ 
+
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -47,10 +53,11 @@ builder.Services.AddCors(options =>
         builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
         // You can further restrict origins if needed:
         builder.WithOrigins("http://localhost:4200");
-        builder.WithOrigins("http://localhost:4210");
+        builder.WithOrigins("https://dcwebui-682935653385.us-central1.run.app");
         builder.WithOrigins("https://dcelectricgroup.net");
         builder.WithOrigins("https://ui.dcelectricgroup.net");
         builder.WithOrigins("https://www.dcelectricgroup.net");
+        builder.WithOrigins("https://dce.morrisdev.com");
     });
 });
 

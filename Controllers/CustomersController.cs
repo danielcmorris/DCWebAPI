@@ -18,11 +18,12 @@ namespace DCElectricWebAPI.Controllers
         Hashtable htPriceLevel = new Hashtable();
         Hashtable htFixturePrice = new Hashtable();
 
-
-        public CustomersController(IOptions<QuickBaseSettings> options)
+        DataLayerBase _dl;
+        public CustomersController(IOptions<QuickBaseSettings> options, DataLayerBase dl)
         {
 
             _settings = options;
+            _dl = dl;
 
         }
 
@@ -31,7 +32,7 @@ namespace DCElectricWebAPI.Controllers
         public async Task<IActionResult> Get([FromHeader] string Authorization, string from = "bhrnewemu")
         {
 
-            var um = new UserModule(Authorization);
+            var um = new UserModule(Authorization, _dl);
             if (!um.Secured) return Unauthorized();
 
             var obj = new QuickBaseConnector(_settings);
