@@ -4,6 +4,7 @@ using DCElectricWebAPI.Modules;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using WebSupergoo.ABCpdf12;
 
 namespace DCElectricWebAPI.Controllers
 {
@@ -20,6 +21,19 @@ namespace DCElectricWebAPI.Controllers
         {
             _db = db;
         }
+        [Route("api/app/pdfstatus")]
+        [HttpGet]
+        public IActionResult PdfStatus()
+        {
+            return Ok(new
+            {
+                LicenseInstalled = !string.IsNullOrEmpty(XSettings.LicenseDescription) && !XSettings.LicenseDescription.Contains("Trial"),
+                LicenseDescription = XSettings.LicenseDescription,
+                Version = XSettings.Version,
+                Key = XSettings.Key
+            });
+        }
+
         [Route("api/app/test")]
         [HttpGet]
         public IActionResult Test()

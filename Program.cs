@@ -2,6 +2,7 @@ using DCElectricWebAPI.Models;
 using DCElectricWebAPI.Modules;
 using Microsoft.Extensions.Options;
 using Serilog;
+using WebSupergoo.ABCpdf12;
 
 var builder = WebApplication.CreateBuilder(args);
 Console.WriteLine($"Current Environment: {builder.Environment.EnvironmentName}");
@@ -21,6 +22,20 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 // Set Serilog as the logging provider
 builder.Host.UseSerilog();
+
+// Install ABCpdf license for PDF generation
+ 
+var key = configuration.GetSection("Websupergoo:license").Value;
+
+var licenseInstalled = XSettings.InstallLicense(key);
+
+Console.WriteLine($"ABCpdf license installed: {licenseInstalled}");
+Console.WriteLine($"ABCpdf license status: {XSettings.LicenseDescription}");
+Console.WriteLine($"ABCpdf version: {XSettings.Version}");
+Log.Information("ABCpdf license installed: {LicenseInstalled}", licenseInstalled);
+Log.Information("ABCpdf license status: {LicenseDescription}", XSettings.LicenseDescription);
+Log.Information("ABCpdf version: {Version}", XSettings.Version);
+
 // Add services to the container.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
