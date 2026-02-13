@@ -168,7 +168,11 @@ public class StreetlightsInvoiceController : ControllerBase
                     task.Request.CustomerName, task.ReportId);
 
                 // Build the fixture billing data
+                _logger.LogInformation("Fetching fixture billing data for {Customer}, ReportID: {ReportId}",
+                    task.Request.CustomerName, task.ReportId);
                 var response = await service.GetFixtureBillingDataAsync(task.Request, details: false);
+                _logger.LogInformation("Fetched fixture billing data for {Customer}, ReportID: {ReportId}, Locations: {Count}",
+                    task.Request.CustomerName, task.ReportId, response.Locations.Count);
 
                 if (!string.IsNullOrEmpty(response.ErrorMessage) && response.Locations.Count == 0)
                 {
@@ -177,7 +181,11 @@ public class StreetlightsInvoiceController : ControllerBase
                 }
 
                 // Generate PDF
+                _logger.LogInformation("Generating fixture PDF for {Customer}, ReportID: {ReportId}",
+                    task.Request.CustomerName, task.ReportId);
                 var pdfBytes = service.GenerateFixtureBillingPdf(response);
+                _logger.LogInformation("Generated fixture PDF for {Customer}, ReportID: {ReportId}, Size: {Size} bytes",
+                    task.Request.CustomerName, task.ReportId, pdfBytes.Length);
 
                 // Generate filename using report naming convention (include Fixture to avoid collision with Tickets)
                 string strStart = $"{task.Request.StartDate.Year}{task.Request.StartDate.Month:00}{task.Request.StartDate.Day:00}_";
@@ -185,9 +193,15 @@ public class StreetlightsInvoiceController : ControllerBase
                 string fileName = $"{task.Request.CustomerName}_{strStart}_{strEnd}.pdf";
 
                 // Upload to Azure
+                _logger.LogInformation("Uploading fixture PDF to Azure for {Customer}, ReportID: {ReportId}, FileName: {FileName}",
+                    task.Request.CustomerName, task.ReportId, fileName);
                 string blobUrl = await _blobService.UploadFileAsync(pdfBytes, fileName, "streetlights");
+                _logger.LogInformation("Uploaded fixture PDF to Azure for {Customer}, ReportID: {ReportId}, BlobUrl: {BlobUrl}",
+                    task.Request.CustomerName, task.ReportId, blobUrl);
 
                 // Update report status to completed/uploaded with fixture count
+                _logger.LogInformation("Updating report status to Uploaded for {Customer}, ReportID: {ReportId}",
+                    task.Request.CustomerName, task.ReportId);
                 await UpdateReportAsync(task.ReportId, "Uploaded", userId, blobUrl, ticketCount: response.TotalFixtures);
 
                 _logger.LogInformation("Completed fixture report for {Customer}, ReportID: {ReportId}, FixtureCount: {Count}",
@@ -197,7 +211,15 @@ public class StreetlightsInvoiceController : ControllerBase
             {
                 _logger.LogError(ex, "Failed to process fixture report for {Customer}, ReportID: {ReportId}",
                     task.Request.CustomerName, task.ReportId);
-                await UpdateReportAsync(task.ReportId, "Failed", userId, message: ex.Message);
+                try
+                {
+                    await UpdateReportAsync(task.ReportId, "Failed", userId,
+                        message: $"{ex.GetType().Name}: {ex.Message}");
+                }
+                catch (Exception updateEx)
+                {
+                    _logger.LogError(updateEx, "Failed to update report status to Failed for ReportID: {ReportId}", task.ReportId);
+                }
             }
         }
     }
@@ -228,7 +250,11 @@ public class StreetlightsInvoiceController : ControllerBase
                     DivisionName = task.Request.DivisionName
                 };
 
+                _logger.LogInformation("Fetching ticket billing data for {Customer}, ReportID: {ReportId}",
+                    task.Request.CustomerName, task.ReportId);
                 var response = await service.GetTicketBillingDataAsync(ticketRequest);
+                _logger.LogInformation("Fetched ticket billing data for {Customer}, ReportID: {ReportId}, Tickets: {Count}",
+                    task.Request.CustomerName, task.ReportId, response.Tickets.Count);
 
                 if (!string.IsNullOrEmpty(response.ErrorMessage) && response.Tickets.Count == 0)
                 {
@@ -237,7 +263,11 @@ public class StreetlightsInvoiceController : ControllerBase
                 }
 
                 // Generate PDF
+                _logger.LogInformation("Generating ticket PDF for {Customer}, ReportID: {ReportId}",
+                    task.Request.CustomerName, task.ReportId);
                 var pdfBytes = service.GenerateTicketBillingPdf(response);
+                _logger.LogInformation("Generated ticket PDF for {Customer}, ReportID: {ReportId}, Size: {Size} bytes",
+                    task.Request.CustomerName, task.ReportId, pdfBytes.Length);
 
                 // Generate filename using report naming convention (include Tickets to avoid collision with Fixture)
                 string strStart = $"{task.Request.StartDate.Year}{task.Request.StartDate.Month:00}{task.Request.StartDate.Day:00}_";
@@ -245,9 +275,15 @@ public class StreetlightsInvoiceController : ControllerBase
                 string fileName = $"{task.Request.CustomerName}_{strStart}_{strEnd}.pdf";
 
                 // Upload to Azure
+                _logger.LogInformation("Uploading ticket PDF to Azure for {Customer}, ReportID: {ReportId}, FileName: {FileName}",
+                    task.Request.CustomerName, task.ReportId, fileName);
                 string blobUrl = await _blobService.UploadFileAsync(pdfBytes, fileName, "streetlights");
+                _logger.LogInformation("Uploaded ticket PDF to Azure for {Customer}, ReportID: {ReportId}, BlobUrl: {BlobUrl}",
+                    task.Request.CustomerName, task.ReportId, blobUrl);
 
                 // Update report status to completed/uploaded with ticket count
+                _logger.LogInformation("Updating report status to Uploaded for {Customer}, ReportID: {ReportId}",
+                    task.Request.CustomerName, task.ReportId);
                 await UpdateReportAsync(task.ReportId, "Uploaded", userId, blobUrl, ticketCount: response.TicketCount);
 
                 _logger.LogInformation("Completed ticket report for {Customer}, ReportID: {ReportId}, TicketCount: {Count}",
@@ -257,7 +293,15 @@ public class StreetlightsInvoiceController : ControllerBase
             {
                 _logger.LogError(ex, "Failed to process ticket report for {Customer}, ReportID: {ReportId}",
                     task.Request.CustomerName, task.ReportId);
-                await UpdateReportAsync(task.ReportId, "Failed", userId, message: ex.Message);
+                try
+                {
+                    await UpdateReportAsync(task.ReportId, "Failed", userId,
+                        message: $"{ex.GetType().Name}: {ex.Message}");
+                }
+                catch (Exception updateEx)
+                {
+                    _logger.LogError(updateEx, "Failed to update report status to Failed for ReportID: {ReportId}", task.ReportId);
+                }
             }
         }
     }
@@ -276,7 +320,8 @@ public class StreetlightsInvoiceController : ControllerBase
     public async Task<IActionResult> GenerateFixtureReports(
         [FromHeader] string? Authorization,
         [FromBody] List<FixtureBillingRequest> requests,
-        [FromQuery] string? apiKey = null)
+        [FromQuery] string? apiKey = null,
+        [FromQuery] string? format = "store")
     {
         try
         {
@@ -284,6 +329,67 @@ public class StreetlightsInvoiceController : ControllerBase
 
             var userId = GetUserId(Authorization);
 
+            // format=pdf: process only the first request synchronously and return the PDF directly
+            if (string.Equals(format, "pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                var request = requests.First();
+                _logger.LogInformation("Generating synchronous fixture PDF for {Customer}", request.CustomerName);
+
+                string strStart = $"{request.StartDate.Year}{request.StartDate.Month:00}{request.StartDate.Day:00}_";
+                string strEnd = $"{request.EndDate.Year}{request.EndDate.Month:00}{request.EndDate.Day:00}";
+                string fileName = $"{request.CustomerName}_{strStart}_{strEnd}.pdf";
+
+                var report = new Report
+                {
+                    CustomerName = request.CustomerName,
+                    ReportType = "Streetlight",
+                    StrButton = "Fixture",
+                    StartDate = request.StartDate,
+                    EndDate = request.EndDate,
+                    CreatedByID = userId,
+                    GenerationStatus = "In Progress",
+                    CreatedDate = DateTime.UtcNow,
+                    ReportName = $"{request.CustomerName}_{strStart}_{strEnd}"
+                };
+                var createdReport = await AddReportAsync(report);
+
+                try
+                {
+                    var response = await _service.GetFixtureBillingDataAsync(request, details: false);
+
+                    if (!string.IsNullOrEmpty(response.ErrorMessage) && response.Locations.Count == 0)
+                    {
+                        await UpdateReportAsync(createdReport.ReportID, "Failed", userId, message: response.ErrorMessage);
+                        return BadRequest(new { error = response.ErrorMessage });
+                    }
+
+                    var pdfBytes = _service.GenerateFixtureBillingPdf(response);
+
+                    string blobUrl = await _blobService.UploadFileAsync(pdfBytes, fileName, "streetlights");
+                    await UpdateReportAsync(createdReport.ReportID, "Uploaded", userId, blobUrl, ticketCount: response.TotalFixtures);
+
+                    _logger.LogInformation("Completed synchronous fixture PDF for {Customer}, Size: {Size} bytes",
+                        request.CustomerName, pdfBytes.Length);
+
+                    return File(pdfBytes, "application/pdf", fileName);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to generate synchronous fixture PDF for {Customer}", request.CustomerName);
+                    try
+                    {
+                        await UpdateReportAsync(createdReport.ReportID, "Failed", userId,
+                            message: $"{ex.GetType().Name}: {ex.Message}");
+                    }
+                    catch (Exception updateEx)
+                    {
+                        _logger.LogError(updateEx, "Failed to update report status to Failed for ReportID: {ReportId}", createdReport.ReportID);
+                    }
+                    return StatusCode(500, $"Error generating PDF: {ex.Message}");
+                }
+            }
+
+            // format=store (default): batch processing with background task
             _logger.LogInformation("Initiating batch fixture report generation for {Count} customers", requests.Count);
 
             var reportTasks = new List<ReportTask>();
@@ -330,7 +436,26 @@ public class StreetlightsInvoiceController : ControllerBase
             }
 
             // Start background processing without waiting
-            Task.Run(() => ProcessFixtureReportsAsync(reportTasks, userId));
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await ProcessFixtureReportsAsync(reportTasks, userId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Unhandled exception in background fixture report processing");
+                    try
+                    {
+                        foreach (var task in reportTasks)
+                            await UpdateReportAsync(task.ReportId, "Failed", userId, message: $"Background task error: {ex.Message}");
+                    }
+                    catch (Exception innerEx)
+                    {
+                        _logger.LogError(innerEx, "Failed to update report status after background task error");
+                    }
+                }
+            });
 
             return Ok(reportResponses);
         }
@@ -353,7 +478,8 @@ public class StreetlightsInvoiceController : ControllerBase
     public async Task<IActionResult> GenerateTicketReports(
         [FromHeader] string? Authorization,
         [FromBody] List<FixtureBillingRequest> requests,
-        [FromQuery] string? apiKey = null)
+        [FromQuery] string? apiKey = null,
+        [FromQuery] string? format = "store")
     {
         try
         {
@@ -361,6 +487,76 @@ public class StreetlightsInvoiceController : ControllerBase
 
             var userId = GetUserId(Authorization);
 
+            // format=pdf: process only the first request synchronously and return the PDF directly
+            if (string.Equals(format, "pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                var request = requests.First();
+                _logger.LogInformation("Generating synchronous ticket PDF for {Customer}", request.CustomerName);
+
+                string strStart = $"{request.StartDate.Year}{request.StartDate.Month:00}{request.StartDate.Day:00}_";
+                string strEnd = $"{request.EndDate.Year}{request.EndDate.Month:00}{request.EndDate.Day:00}";
+                string fileName = $"{request.CustomerName}_{strStart}_{strEnd}.pdf";
+
+                var report = new Report
+                {
+                    CustomerName = request.CustomerName,
+                    ReportType = "Streetlight",
+                    StrButton = "Ticket",
+                    StartDate = request.StartDate,
+                    EndDate = request.EndDate,
+                    CreatedByID = userId,
+                    GenerationStatus = "In Progress",
+                    CreatedDate = DateTime.UtcNow,
+                    ReportName = $"{request.CustomerName}_{strStart}_{strEnd}"
+                };
+                var createdReport = await AddReportAsync(report);
+
+                try
+                {
+                    var ticketRequest = new TicketBillingRequest
+                    {
+                        CustomerName = request.CustomerName,
+                        StartDate = request.StartDate,
+                        EndDate = request.EndDate,
+                        DivisionId = request.DivisionId,
+                        DivisionName = request.DivisionName
+                    };
+
+                    var response = await _service.GetTicketBillingDataAsync(ticketRequest);
+
+                    if (!string.IsNullOrEmpty(response.ErrorMessage) && response.Tickets.Count == 0)
+                    {
+                        await UpdateReportAsync(createdReport.ReportID, "Failed", userId, message: response.ErrorMessage);
+                        return BadRequest(new { error = response.ErrorMessage });
+                    }
+
+                    var pdfBytes = _service.GenerateTicketBillingPdf(response);
+
+                    string blobUrl = await _blobService.UploadFileAsync(pdfBytes, fileName, "streetlights");
+                    await UpdateReportAsync(createdReport.ReportID, "Uploaded", userId, blobUrl, ticketCount: response.TicketCount);
+
+                    _logger.LogInformation("Completed synchronous ticket PDF for {Customer}, Size: {Size} bytes",
+                        request.CustomerName, pdfBytes.Length);
+
+                    return File(pdfBytes, "application/pdf", fileName);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to generate synchronous ticket PDF for {Customer}", request.CustomerName);
+                    try
+                    {
+                        await UpdateReportAsync(createdReport.ReportID, "Failed", userId,
+                            message: $"{ex.GetType().Name}: {ex.Message}");
+                    }
+                    catch (Exception updateEx)
+                    {
+                        _logger.LogError(updateEx, "Failed to update report status to Failed for ReportID: {ReportId}", createdReport.ReportID);
+                    }
+                    return StatusCode(500, $"Error generating PDF: {ex.Message}");
+                }
+            }
+
+            // format=store (default): batch processing with background task
             _logger.LogInformation("Initiating batch ticket report generation for {Count} customers", requests.Count);
 
             var reportTasks = new List<ReportTask>();
@@ -407,7 +603,26 @@ public class StreetlightsInvoiceController : ControllerBase
             }
 
             // Start background processing without waiting
-            Task.Run(() => ProcessTicketReportsAsync(reportTasks, userId));
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await ProcessTicketReportsAsync(reportTasks, userId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Unhandled exception in background ticket report processing");
+                    try
+                    {
+                        foreach (var task in reportTasks)
+                            await UpdateReportAsync(task.ReportId, "Failed", userId, message: $"Background task error: {ex.Message}");
+                    }
+                    catch (Exception innerEx)
+                    {
+                        _logger.LogError(innerEx, "Failed to update report status after background task error");
+                    }
+                }
+            });
 
             return Ok(reportResponses);
         }
