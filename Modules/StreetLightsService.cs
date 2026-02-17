@@ -117,28 +117,30 @@ public class StreetLightsService
     }
 
     // Field IDs for Material Line Items table
+    // Corrected to match actual QuickBase schema per FIELD_MAPPINGS.md
     private static class MaterialFields
     {
         public const int RecordId = 3;
-        public const int RelatedTicket = 13;
-        public const int ItemId = 6;
-        public const int ItemDescription = 7;
-        public const int Quantity = 8;
-        public const int UnitOfMeasure = 9;
-        public const int NonInventory = 10;
-        public const int MaterialDescriptionCalc = 11;
-        public const int NonInventorySalePrice = 12;
-        public const int ItemIdListPrice = 14;
+        public const int Quantity = 6;
+        public const int RelatedTicket = 13;            // Ticket ID (text lookup for filtering)
+        public const int ItemId = 24;                   // Item ID
+        public const int ItemDescription = 25;          // Item Description (text lookup)
+        public const int ItemIdListPrice = 26;          // Item ID - List Price (currency lookup)
+        public const int UnitOfMeasure = 27;            // Unit of Measurement (text lookup)
+        public const int NonInventory = 32;             // Non-Inventory Material (checkbox)
+        public const int NonInventorySalePrice = 35;    // Non-Inventory Material SALE Price (currency)
+        public const int MaterialDescriptionCalc = 36;  // Material Description CALC (formula)
     }
 
     // Field IDs for Material Pricing table
+    // Corrected to match actual QuickBase schema per FIELD_MAPPINGS.md
     private static class MaterialPricingFields
     {
         public const int RecordId = 3;
-        public const int ItemId = 27;           // Item ID (e.g., 1201007001)
-        public const int PricingGroup = 14;     // Group Pricing Level (A, B, E, etc.)
         public const int SellPrice = 8;         // Sell Price (currency)
-        public const int LumpSum = 9;           // Related Pricing Level (used for lump sum indicator)
+        public const int PricingGroup = 14;     // Group Pricing Level (A, B, E, etc.)
+        public const int ItemId = 27;           // Item ID (e.g., 1201007001)
+        public const int LumpSum = 32;          // Lump Sum (checkbox)
     }
 
     // Field IDs for Equipment Line Items table
@@ -151,13 +153,13 @@ public class StreetLightsService
         public const int Equipment = 9;           // Equipment (text lookup - equipment name)
     }
 
-    // Field IDs for Equipment Pricing table
+    // Field IDs for Equipment Pricing table (per FIELD_MAPPINGS.md)
     private static class EquipmentPricingFields
     {
         public const int RecordId = 3;
-        public const int Customer = 6;
-        public const int Equipment = 7;
-        public const int EquipmentRate = 9;
+        public const int Customer = 6;      // Customer Name
+        public const int Equipment = 7;     // Equipment
+        public const int EquipmentRate = 9; // Price
     }
 
     // Field IDs for Team Members table
@@ -353,12 +355,49 @@ public class StreetLightsService
             options = new QBQueryOptions { top = 1 }
         };
 
+        _logger.LogInformation("GetCustomerPricingLevelAsync: Looking up pricing level for customer '{CustomerName}'", customerName);
+
         var result = await qb.Query(query);
+
+        _logger.LogInformation("GetCustomerPricingLevelAsync: Query returned {Count} records", result?.data?.Count ?? 0);
 
         if (result?.data != null && result.data.Count > 0)
         {
             JObject obj = result.data[0];
-            return GetStringValue(obj, CustomerFields.GroupPricingLevel);
+
+            // Log the raw data to see what we got
+            _logger.LogInformation("GetCustomerPricingLevelAsync: Raw record data: {Data}", obj.ToString());
+
+            var foundName = GetStringValue(obj, CustomerFields.CustomerName);
+            var pricingLevel = GetStringValue(obj, CustomerFields.GroupPricingLevel);
+            _logger.LogInformation("GetCustomerPricingLevelAsync: Found customer '{FoundName}' with pricing level '{PricingLevel}' (field {FieldId})",
+                foundName, pricingLevel, CustomerFields.GroupPricingLevel);
+            return pricingLevel;
+        }
+
+        // Try a contains search to find similar customer names for debugging
+        var containsQuery = new QBQuery
+        {
+            from = CustomersTableId,
+            select = new List<int>
+            {
+                CustomerFields.CustomerName,
+                CustomerFields.GroupPricingLevel
+            },
+            where = $"{{{CustomerFields.CustomerName}.CT.'{EscapeQueryValue(customerName.Split(' ')[0])}'}}",
+            options = new QBQueryOptions { top = 10 }
+        };
+
+        var containsResult = await qb.Query(containsQuery);
+        if (containsResult?.data != null && containsResult.data.Count > 0)
+        {
+            var similarNames = containsResult.data.Select(d => GetStringValue((JObject)d, CustomerFields.CustomerName)).ToList();
+            _logger.LogWarning("GetCustomerPricingLevelAsync: Customer '{CustomerName}' not found. Similar names: {SimilarNames}",
+                customerName, string.Join(", ", similarNames));
+        }
+        else
+        {
+            _logger.LogWarning("GetCustomerPricingLevelAsync: Customer '{CustomerName}' not found and no similar names found", customerName);
         }
 
         return string.Empty;
@@ -1175,6 +1214,9 @@ public class StreetLightsService
             options = new QBQueryOptions { top = 1 }
         };
 
+        _logger.LogInformation("GetMaterialPriceAsync: ItemId={ItemId}, PricingLevel={PricingLevel}, ListPrice={ListPrice}",
+            itemId, pricingLevel, listPrice);
+
         var result = await qb.Query(query);
 
         if (result?.data != null && result.data.Count > 0)
@@ -1183,17 +1225,22 @@ public class StreetLightsService
             var sellPrice = GetDecimalValue(obj, MaterialPricingFields.SellPrice);
             var isLumpSum = GetStringValue(obj, MaterialPricingFields.LumpSum) == "1";
 
-            // If sell price is 0 and billable override is set, use list price
-            // Otherwise use the sell price (which may be 0)
+            // If sell price is 0, fall back to list price (legacy app behavior)
             decimal finalPrice = sellPrice;
-            if (sellPrice == 0 && billableOverride)
+            if (sellPrice == 0 && listPrice > 0)
             {
                 finalPrice = listPrice;
+                _logger.LogInformation("GetMaterialPriceAsync: SellPrice is 0, using ListPrice {ListPrice} for ItemId={ItemId}",
+                    listPrice, itemId);
             }
 
+            _logger.LogInformation("GetMaterialPriceAsync: Found price {Price}, IsLumpSum={IsLumpSum} for ItemId={ItemId}",
+                finalPrice, isLumpSum, itemId);
             return (finalPrice, isLumpSum);
         }
 
+        _logger.LogWarning("GetMaterialPriceAsync: No pricing record found for ItemId={ItemId}, PricingLevel={PricingLevel}, using ListPrice={ListPrice}",
+            itemId, pricingLevel, listPrice);
         // No pricing record found - use list price
         return (listPrice, false);
     }
@@ -1216,14 +1263,22 @@ public class StreetLightsService
             options = new QBQueryOptions { top = 1 }
         };
 
+        _logger.LogInformation("GetEquipmentRateAsync: Customer={Customer}, Equipment={Equipment}",
+            customerName, equipmentName);
+
         var result = await qb.Query(query);
 
         if (result?.data != null && result.data.Count > 0)
         {
             JObject obj = result.data[0];
-            return GetDecimalValue(obj, EquipmentPricingFields.EquipmentRate);
+            var rate = GetDecimalValue(obj, EquipmentPricingFields.EquipmentRate);
+            _logger.LogInformation("GetEquipmentRateAsync: Found rate {Rate} for {Customer}/{Equipment}",
+                rate, customerName, equipmentName);
+            return rate;
         }
 
+        _logger.LogWarning("GetEquipmentRateAsync: No equipment pricing found for {Customer}/{Equipment}",
+            customerName, equipmentName);
         return 0;
     }
 
@@ -1285,18 +1340,13 @@ public class StreetLightsService
     private bool ShouldBillLaborAndEquipment(List<MaterialLineItem> materials)
     {
         // If any material is marked as lump sum, don't bill labor/equipment
+        // (lump sum means labor/equipment is included in the material price)
         if (materials.Any(m => m.IsLumpSum))
             return false;
 
-        // If there are materials with prices, bill labor/equipment
-        if (materials.Any(m => m.Price > 0))
-            return true;
-
-        // If no materials, bill labor/equipment
-        if (materials.Count == 0)
-            return true;
-
-        return false;
+        // Otherwise, always bill labor/equipment
+        // The legacy app bills unless there's a lump sum material
+        return true;
     }
 
     /// <summary>
@@ -1368,6 +1418,18 @@ public class StreetLightsService
         var summaryHtml = BuildSummaryPageHtml(data);
         doc.Rect.String = "40 50 555 720";
         doc.AddImageHtml(summaryHtml);
+
+        // Add page numbers to each page
+        int totalPages = doc.PageCount;
+        for (int i = 1; i <= totalPages; i++)
+        {
+            doc.PageNumber = i;
+            doc.Rect.String = "40 20 555 40";
+            doc.HPos = 0.5;
+            doc.VPos = 0.5;
+            doc.FontSize = 9;
+            doc.AddText($"Page {i} of {totalPages}");
+        }
 
         // Flatten and return
         for (int i = 1; i <= doc.PageCount; i++)
@@ -1454,7 +1516,7 @@ public class StreetLightsService
             {
                 sb.Append($"<tr><td>{System.Net.WebUtility.HtmlEncode(group.Key)} :</td><td></td><td></td><td class='right'>{group.Sum(l => l.Hours):N2}</td><td></td><td class='right'>{group.Sum(l => l.Cost):C}</td></tr>");
             }
-            sb.Append($"<tr class='total-row'><td>Total Hours:</td><td></td><td></td><td class='right'>{ticket.LaborItems.Sum(l => l.Hours):N2}</td><td></td><td class='right'>{ticket.TicketLaborTotal:C}</td></tr>");
+            sb.Append($"<tr class='total-row'><td><strong>Total Technician Hours:</strong></td><td></td><td></td><td class='right'><strong>{ticket.LaborItems.Sum(l => l.Hours):N2}</strong></td><td></td><td class='right'><strong>{ticket.TicketLaborTotal:C}</strong></td></tr>");
             sb.Append("</table>");
         }
 
@@ -1466,7 +1528,7 @@ public class StreetLightsService
             {
                 sb.Append($"<tr><td>{System.Net.WebUtility.HtmlEncode(material.ItemId)} - {System.Net.WebUtility.HtmlEncode(material.Description)}</td><td>{System.Net.WebUtility.HtmlEncode(material.UnitOfMeasure)}</td><td class='right'>{material.Quantity:N2}</td><td class='right'>{material.Price:N2}</td><td class='right'>{material.Cost:C}</td></tr>");
             }
-            sb.Append($"<tr><td colspan='4'>Total Materials Cost:</td><td class='right'>{ticket.TicketMaterialsTotal:C}</td></tr>");
+            sb.Append($"<tr class='total-row'><td colspan='4'><strong>Total Materials Cost:</strong></td><td class='right'><strong>{ticket.TicketMaterialsTotal:C}</strong></td></tr>");
             sb.Append("</table>");
         }
 
@@ -1478,9 +1540,12 @@ public class StreetLightsService
             {
                 sb.Append($"<tr><td>{System.Net.WebUtility.HtmlEncode(equipment.Equipment)}</td><td class='right'>{equipment.Hours:N2}</td><td class='right'>{equipment.Rate:C}</td><td class='right'>{equipment.Cost:C}</td></tr>");
             }
-            sb.Append($"<tr><td></td><td class='right'>{ticket.EquipmentItems.Sum(e => e.Hours):N2}</td><td></td><td class='right'>{ticket.TicketEquipmentTotal:C}</td></tr>");
+            sb.Append($"<tr class='total-row'><td><strong>Total Equipment Hours:</strong></td><td class='right'><strong>{ticket.EquipmentItems.Sum(e => e.Hours):N2}</strong></td><td></td><td class='right'><strong>{ticket.TicketEquipmentTotal:C}</strong></td></tr>");
             sb.Append("</table>");
         }
+
+        // Ticket Total
+        sb.Append($"<div style='margin-top: 15px; text-align: right; font-size: 11pt;'><strong>Total: {ticket.TicketTotal:C}</strong></div>");
 
         sb.Append("</body></html>");
         return sb.ToString();
@@ -1614,7 +1679,14 @@ public class StreetLightsService
         if (long.TryParse(value, out var milliseconds))
         {
             var timeSpan = TimeSpan.FromMilliseconds(milliseconds);
-            return $"{(int)timeSpan.TotalHours:D2}:{timeSpan.Minutes:D2}";
+            var dateTime = DateTime.Today.Add(timeSpan);
+            return dateTime.ToString("h:mm tt");
+        }
+
+        // Try to parse as a time string and reformat with AM/PM
+        if (DateTime.TryParse(value, out var parsedTime))
+        {
+            return parsedTime.ToString("h:mm tt");
         }
 
         return value;
