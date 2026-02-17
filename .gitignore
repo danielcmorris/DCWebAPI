@@ -371,3 +371,6 @@ MigrationBackup/
 FodyWeavers.xsd
 /Comparison
 /nul
+
+# Docker environment secrets
+.env

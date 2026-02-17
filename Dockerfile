@@ -2,20 +2,20 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy csproj and restore dependencies
+# Copy csproj and restore dependencies for linux-x64 runtime
 COPY *.csproj ./
-RUN dotnet restore
+RUN dotnet restore --runtime linux-x64
 
 # Copy everything else and build
 COPY . .
-RUN dotnet publish -c Release -o /app/publish
+RUN dotnet publish -c Release -o /app/publish --runtime linux-x64 --self-contained false
 
 # Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 
 # Install ABCpdf dependencies for Linux
-# libgdiplus for GDI+ support, fontconfig for fonts, and common fonts
+# libgdiplus for GDI+ support, fontconfig for fonts, libcurl4 for network, and common fonts
 RUN apt-get update && apt-get install -y \
     libgdiplus \
     libc6-dev \
@@ -23,6 +23,9 @@ RUN apt-get update && apt-get install -y \
     libx11-6 \
     libxext6 \
     libxrender1 \
+    libcurl4 \
+    libssl3 \
+    curl \
     fonts-liberation \
     fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
@@ -30,7 +33,7 @@ RUN apt-get update && apt-get install -y \
 # Create logs directory
 RUN mkdir -p /app/logs
 
-# Copy published app
+# Copy published app (includes native ABCpdf libraries for linux-x64)
 COPY --from=build /app/publish .
 
 # Copy assets (logo images, etc.)
