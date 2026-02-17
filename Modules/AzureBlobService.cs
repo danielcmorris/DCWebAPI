@@ -154,6 +154,12 @@ public class AzureBlobService
         // Get a reference to the blob
         BlobClient blobClient = containerClient.GetBlobClient(blobName);
 
+        // Check if the blob exists
+        if (!await blobClient.ExistsAsync())
+        {
+            return null;
+        }
+
         // Download the blob's content
         BlobDownloadInfo download = await blobClient.DownloadAsync();
 
@@ -163,6 +169,35 @@ public class AzureBlobService
             await download.Content.CopyToAsync(ms);
             return ms.ToArray(); // Return the blob content as a byte array
         }
+    }
+
+    /// <summary>
+    /// Generates a SAS URL for a blob by name, providing time-limited read access.
+    /// </summary>
+    /// <param name="blobName">The name/path of the blob.</param>
+    /// <param name="inline">If true, sets Content-Disposition to inline for browser preview.</param>
+    /// <returns>A SAS URL that provides read access to the blob.</returns>
+    public string GetSasUrlForBlob(string blobName, bool inline = false)
+    {
+        BlobContainerClient containerClient = _blobServiceClient.GetBlobContainerClient(_containerName);
+        BlobClient blobClient = containerClient.GetBlobClient(blobName);
+
+        if (inline)
+        {
+            BlobSasBuilder sasBuilder = new BlobSasBuilder
+            {
+                BlobContainerName = blobClient.BlobContainerName,
+                BlobName = blobClient.Name,
+                Resource = "b",
+                ExpiresOn = DateTimeOffset.UtcNow.AddHours(1),
+                ContentDisposition = "inline",
+                ContentType = "application/pdf"
+            };
+            sasBuilder.SetPermissions(BlobSasPermissions.Read);
+            return blobClient.GenerateSasUri(sasBuilder).ToString();
+        }
+
+        return GenerateSasUrl(blobClient);
     }
 
     public async Task<bool> DeleteBlobAsync(string blobName)

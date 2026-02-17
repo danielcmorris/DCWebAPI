@@ -201,15 +201,47 @@ public class ReportsController : ControllerBase
             return Problem(ex.Message, statusCode: StatusCodes.Status500InternalServerError);
         }
     }
-    [HttpPost("download-zip")]
-    public async Task<IActionResult> DownloadReportsAsZip([FromHeader] string Authorization, [FromBody] List<Guid> reportIds)
+    [HttpGet("sas-url")]
+    public IActionResult GetSasUrl([FromHeader] string Authorization, [FromQuery] string blobName)
     {
         var um = new UserModule(Authorization, _dl);
         if (!um.Secured) return Unauthorized();
 
         try
         {
-            _logger.LogInformation("Downlloading files as zip for reports: {reports}", string.Join(",", reportIds));
+            if (string.IsNullOrEmpty(blobName))
+            {
+                return BadRequest(new { message = "blobName is required" });
+            }
+
+            // Decode the blob name in case it's URL-encoded
+            var decodedBlobName = Uri.UnescapeDataString(blobName);
+
+            var sasUrl = _blobService.GetSasUrlForBlob(decodedBlobName, inline: true);
+            return Ok(new { url = sasUrl });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate SAS URL for blob: {BlobName}", blobName);
+            return Problem(ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+        }
+    }
+
+    [HttpPost("download-zip")]
+    public async Task<IActionResult> DownloadReportsAsZip([FromHeader] string Authorization, [FromBody] List<Guid> reportIds)
+    {
+        _logger.LogWarning("=== download-zip endpoint called with {Count} report IDs ===", reportIds?.Count ?? 0);
+
+        var um = new UserModule(Authorization, _dl);
+        if (!um.Secured)
+        {
+            _logger.LogWarning("=== download-zip: Authorization failed ===");
+            return Unauthorized();
+        }
+
+        try
+        {
+            _logger.LogWarning("=== download-zip: Processing {Count} reports: {Reports} ===", reportIds.Count, string.Join(",", reportIds));
             // Create a temporary memory stream to hold the zip file
             using (var memoryStream = new MemoryStream())
             {
@@ -221,18 +253,48 @@ public class ReportsController : ControllerBase
                         // Fetch the report from the database (fetch Blob URL)
                         var report = await GetReportByIdAsync(reportId);
 
-                        if (report != null && report.GenerationStatus == "Uploaded" && !string.IsNullOrEmpty(report.BlobURL))
+                        if (report == null)
                         {
-                            _logger.LogInformation("Downloading the blobname: {BlobName}", $"traffic/{report.ReportName}.pdf");
-                            // Download the blob from Azure Storage
-                            byte[] blobData = await _blobService.GetBlobAsync($"traffic/{report.ReportName}.pdf");
+                            _logger.LogWarning("Report not found: {ReportId}", reportId);
+                            continue;
+                        }
 
+                        _logger.LogInformation("Report {ReportId}: Status={Status}, BlobURL={BlobURL}",
+                            reportId, report.GenerationStatus, report.BlobURL ?? "(null)");
+
+                        if (report.GenerationStatus != "Uploaded")
+                        {
+                            _logger.LogWarning("Report {ReportId} status is '{Status}', not 'Uploaded'", reportId, report.GenerationStatus);
+                            continue;
+                        }
+
+                        if (string.IsNullOrEmpty(report.BlobURL))
+                        {
+                            _logger.LogWarning("Report {ReportId} has no BlobURL", reportId);
+                            continue;
+                        }
+
+                        // Extract blob path from BlobURL (e.g., "streetlights/filename.pdf" or "traffic/filename.pdf")
+                        var blobUri = new Uri(report.BlobURL);
+                        var blobPath = Uri.UnescapeDataString(string.Concat(blobUri.Segments.Skip(2)));
+
+                        _logger.LogInformation("Downloading blob: {BlobPath}", blobPath);
+                        // Download the blob from Azure Storage
+                        byte[] blobData = await _blobService.GetBlobAsync(blobPath);
+
+                        if (blobData != null)
+                        {
                             // Add each blob as an entry in the zip archive
                             var zipEntry = archive.CreateEntry($"{report.ReportName}.pdf", CompressionLevel.Fastest);
                             using (var zipStream = zipEntry.Open())
                             {
                                 await zipStream.WriteAsync(blobData, 0, blobData.Length);
                             }
+                            _logger.LogInformation("Added {FileName} to zip ({Size} bytes)", $"{report.ReportName}.pdf", blobData.Length);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Blob not found for report {ReportId}: {BlobPath}", reportId, blobPath);
                         }
                     }
                 }
