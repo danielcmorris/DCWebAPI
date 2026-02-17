@@ -51,6 +51,8 @@ builder.Services.AddSingleton<AzureBlobService>();
 builder.Services.AddScoped<DataLayerBase>();
 // Register StreetLightsService in DI
 builder.Services.AddScoped<StreetLightsService>();
+// Register TrafficLightsService in DI
+builder.Services.AddScoped<TrafficLightsService>();
  
 
 
