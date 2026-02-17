@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  dcelectric-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dcelectric-webapi
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Docker
+      # QuickBase settings (override via .env file or command line)
+      - quickbase__domain=dcelectricgroup.quickbase.com
+      - quickbase__token=${QB_TOKEN}
+      - quickbase__jltoken=${QB_JLTOKEN}
+      - quickbase__safetoken=${QB_SAFETOKEN}
+      - quickbase__traffictoken=${QB_TRAFFICTOKEN}
+      # Azure Blob Storage
+      - AzureBlobStorageConnectionString=${AZURE_BLOB_CONNECTION}
+      - AzureBlobStorageContainerName=dcelectric
+      - AzureBlobStorageFolderName=traffic
+      # ABCpdf License
+      - Websupergoo__license=${ABCPDF_LICENSE}
+      # Database connection
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION}
+    volumes:
+      # Mount logs directory for persistence
+      - ./logs:/app/logs
+      # Optionally mount appsettings for local overrides
+      # - ./appsettings.Docker.json:/app/appsettings.Docker.json:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/swagger/index.html"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

@@ -6,13 +6,15 @@ using WebSupergoo.ABCpdf12;
 
 var builder = WebApplication.CreateBuilder(args);
 Console.WriteLine($"Current Environment: {builder.Environment.EnvironmentName}");
+
+// Load environment-specific appsettings (e.g., appsettings.Docker.json)
+builder.Configuration
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
+    .AddEnvironmentVariables();
+
 var dd = builder.Configuration.GetConnectionString("DefaultConnection");
 Console.WriteLine($"DEBUG: The connection string being used is: {dd}");
-
-
-IConfiguration configuration = new ConfigurationBuilder()
-                            .AddJsonFile("appsettings.json")
-                            .Build();
 
 // Configure Serilog from appsettings.json
 Log.Logger = new LoggerConfiguration()
@@ -24,8 +26,7 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog();
 
 // Install ABCpdf license for PDF generation
- 
-var key = configuration.GetSection("Websupergoo:license").Value;
+var key = builder.Configuration.GetSection("Websupergoo:license").Value;
 
 var licenseInstalled = XSettings.InstallLicense(key);
 
