@@ -30,6 +30,23 @@ Frontend (Angular) → DCElectricWebAPI → Quickbase REST API
 - Serilog logging
 
 ---
+## Local Authentication and AUthorization Strings
+
+
+## PDF Reports
+**Streetlights Ticket Report** is generated in the StreetlightsInvoiceController.cs  ProcessTicketReportsAsync
+  This report has the option to be displayed as pdf from the endpoint, or "stored", meaning it is sent to google storage after generation and a database is updated to notify the user it is complete and can be downloaded
+To generate a ticket report for testing:
+```
+curl --location '{{server}}/api/pdf/streetlights/invoice/tickets?format=pdf' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: ••••••' \
+--data '[{
+    "customerName": "City of Berkeley - On Call Electrical",
+    "startDate": "2025-05-01",
+    "endDate": "2025-05-31"
+  }]'
+```
 
 ## Quickbase Integration
 
