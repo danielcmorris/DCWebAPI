@@ -156,7 +156,7 @@ public class ReportsController : ControllerBase
             string sql = $@"
                             SELECT ReportId, CustomerName, StartDate, EndDate, CreatedByID, UpdatedByID, GenerationStatus, ReportName, BlobURL,ReportType, StrButton,Message, CreatedDate, UpdatedDate
                             FROM Report
-                            WHERE IsDeleted = 0 and ReportType = @ReportType
+                            WHERE IsDeleted = 0 and LOWER(ReportType) = LOWER(@ReportType)
                             ORDER BY CreatedDate DESC";
 
           
