@@ -28,6 +28,7 @@ docker-compose*
 # Secrets (don't include in image - use environment variables)
 appsettings.Development.json
 appsettings.Local.json
+creds/
 
 # Test files
 *.Tests/
