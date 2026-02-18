@@ -1,0 +1,38 @@
+name: Build and Deploy to Cloud Run
+
+on:
+  push:
+    branches: [linux/master]
+
+env:
+  PROJECT_ID: morrisdev-203721
+  REGION: us-central1
+  SERVICE_NAME: dcelectric-webapi
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and Deploy
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --source . \
+            --region ${{ env.REGION }} \
+            --allow-unauthenticated \
+            --port 8080 \
+            --memory 2Gi \
+            --cpu 2 \
+            --timeout 300 \
+            --cpu-boost \
+            --quiet
