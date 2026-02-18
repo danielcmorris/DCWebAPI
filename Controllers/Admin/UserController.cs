@@ -66,14 +66,27 @@ namespace DCElectricWebAPI.Controllers.Admin
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateUser([FromBody] User userParams, int id, [FromQuery] string sid)
         {
+            try
+            {
+                // Update user with optional password change
+                string sql;
+                object parameters;
 
-
-          
-                var user = await dl.Connection.QuerySingleAsync<User>(
-                    "SELECT * FROM usp_update_user(@UserID, @FirstName, @LastName, @Password, @Email, @Phone, @UserLevel, @Permissions, @Status, @SessionID)",
-                    new
+                if (!string.IsNullOrEmpty(userParams.Password))
+                {
+                    sql = @"UPDATE users SET
+                        firstname = @FirstName,
+                        lastname = @LastName,
+                        password = @Password,
+                        email = @Email,
+                        phone = @Phone,
+                        userlevel = @UserLevel,
+                        permissions = @Permissions,
+                        status = @Status
+                        WHERE userid = @UserId";
+                    parameters = new
                     {
-                        UserID = id,
+                        UserId = id,
                         FirstName = userParams.FirstName,
                         LastName = userParams.LastName,
                         Password = userParams.Password,
@@ -81,13 +94,44 @@ namespace DCElectricWebAPI.Controllers.Admin
                         Phone = userParams.Phone,
                         UserLevel = userParams.UserLevel,
                         Permissions = userParams.Permissions,
-                        Status = userParams.Status,
-                        SessionID = sid
-                    });
+                        Status = userParams.Status
+                    };
+                }
+                else
+                {
+                    sql = @"UPDATE users SET
+                        firstname = @FirstName,
+                        lastname = @LastName,
+                        email = @Email,
+                        phone = @Phone,
+                        userlevel = @UserLevel,
+                        permissions = @Permissions,
+                        status = @Status
+                        WHERE userid = @UserId";
+                    parameters = new
+                    {
+                        UserId = id,
+                        FirstName = userParams.FirstName,
+                        LastName = userParams.LastName,
+                        Email = userParams.Email,
+                        Phone = userParams.Phone,
+                        UserLevel = userParams.UserLevel,
+                        Permissions = userParams.Permissions,
+                        Status = userParams.Status
+                    };
+                }
 
+                var rowsAffected = await dl.ExecuteAsync(sql, parameters);
 
-                return Ok(user);
-             
+                if (rowsAffected > 0)
+                    return Ok(new { success = true, message = "User updated" });
+                else
+                    return NotFound(new { success = false, message = "User not found" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message, detail = ex.InnerException?.Message });
+            }
         }
 
     }

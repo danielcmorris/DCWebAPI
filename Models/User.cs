@@ -20,6 +20,10 @@
         public string Phone { get; set; } = "";
         public string Permissions { get; set; } = "None";
         public string Status { get; set; } = "Active";
+        public bool Dcdb { get; set; }
+        public bool Qb2qb { get; set; }
+        public bool Calpayer { get; set; }
+        public bool Streetlights { get; set; }
 
     }
     public class Credentials

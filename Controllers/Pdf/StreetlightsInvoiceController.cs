@@ -147,6 +147,13 @@ public class StreetlightsInvoiceController : ControllerBase
 
     }
 
+    private async Task SaveReportDataAsync(Guid reportId, object reportData)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(reportData);
+        var sql = @"UPDATE Report SET report_data = @json::jsonb, UpdatedDate = NOW() WHERE ReportID = @reportId";
+        await _dl.ExecuteAsync(sql, new { reportId, json });
+    }
+
     #endregion
 
     #region Background Processing
@@ -173,6 +180,11 @@ public class StreetlightsInvoiceController : ControllerBase
                 var response = await service.GetFixtureBillingDataAsync(task.Request, details: false);
                 _logger.LogInformation("Fetched fixture billing data for {Customer}, ReportID: {ReportId}, Locations: {Count}",
                     task.Request.CustomerName, task.ReportId, response.Locations.Count);
+
+                // Save report data to database
+                await SaveReportDataAsync(task.ReportId, response);
+                _logger.LogInformation("Saved fixture report data for {Customer}, ReportID: {ReportId}",
+                    task.Request.CustomerName, task.ReportId);
 
                 if (!string.IsNullOrEmpty(response.ErrorMessage) && response.Locations.Count == 0)
                 {
@@ -255,6 +267,11 @@ public class StreetlightsInvoiceController : ControllerBase
                 var response = await service.GetTicketBillingDataAsync(ticketRequest);
                 _logger.LogInformation("Fetched ticket billing data for {Customer}, ReportID: {ReportId}, Tickets: {Count}",
                     task.Request.CustomerName, task.ReportId, response.Tickets.Count);
+
+                // Save report data to database
+                await SaveReportDataAsync(task.ReportId, response);
+                _logger.LogInformation("Saved ticket report data for {Customer}, ReportID: {ReportId}",
+                    task.Request.CustomerName, task.ReportId);
 
                 if (!string.IsNullOrEmpty(response.ErrorMessage) && response.Tickets.Count == 0)
                 {
@@ -356,6 +373,9 @@ public class StreetlightsInvoiceController : ControllerBase
                 try
                 {
                     var response = await _service.GetFixtureBillingDataAsync(request, details: false);
+
+                    // Save report data to database
+                    await SaveReportDataAsync(createdReport.ReportID, response);
 
                     if (!string.IsNullOrEmpty(response.ErrorMessage) && response.Locations.Count == 0)
                     {
@@ -523,6 +543,9 @@ public class StreetlightsInvoiceController : ControllerBase
                     };
 
                     var response = await _service.GetTicketBillingDataAsync(ticketRequest);
+
+                    // Save report data to database
+                    await SaveReportDataAsync(createdReport.ReportID, response);
 
                     if (!string.IsNullOrEmpty(response.ErrorMessage) && response.Tickets.Count == 0)
                     {
