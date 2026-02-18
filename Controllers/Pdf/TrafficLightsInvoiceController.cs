@@ -10,7 +10,7 @@ public class TrafficLightsInvoiceController : ControllerBase
 {
     private readonly TrafficLightsService _service;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly AzureBlobService _blobService;
+    private readonly DualStorageService _dualStorageService;
     private readonly ILogger<TrafficLightsInvoiceController> _logger;
     private readonly DataLayerBase _dl;
 
@@ -20,14 +20,14 @@ public class TrafficLightsInvoiceController : ControllerBase
     public TrafficLightsInvoiceController(
         TrafficLightsService service,
         IServiceScopeFactory scopeFactory,
-        AzureBlobService blobService,
+        DualStorageService dualStorageService,
         DataLayerBase dl,
         ILogger<TrafficLightsInvoiceController> logger)
     {
         _dl = dl;
         _service = service;
         _scopeFactory = scopeFactory;
-        _blobService = blobService;
+        _dualStorageService = dualStorageService;
         _logger = logger;
     }
 
@@ -112,14 +112,13 @@ public class TrafficLightsInvoiceController : ControllerBase
         return report;
     }
 
-    private async Task UpdateReportAsync(Guid reportId, string status, int updateById, string? blobUrl = null, bool isDeleted = false, string? message = null, int? ticketCount = null)
+    private async Task UpdateReportAsync(Guid reportId, string status, int updateById, string? blobUrl = null, bool isDeleted = false, string? message = null, int? ticketCount = null, string? gcsUrl = null)
     {
-        int del = isDeleted ? 1 : 0;
-
         var sql = @"
         UPDATE Report
         SET GenerationStatus = @status,
             BlobURL = @blobUrl,
+            GcsURL = COALESCE(@gcsUrl, GcsURL),
             IsDeleted = @isDeleted,
             Message = @message,
             TicketCount = COALESCE(@ticketCount, TicketCount),
@@ -133,6 +132,7 @@ public class TrafficLightsInvoiceController : ControllerBase
             status,
             updateById,
             blobUrl,
+            gcsUrl,
             isDeleted = isDeleted ? 1 : 0,
             message,
             ticketCount
@@ -196,17 +196,20 @@ public class TrafficLightsInvoiceController : ControllerBase
                 string strEnd = $"{task.Request.EndDate.Year}{task.Request.EndDate.Month:00}{task.Request.EndDate.Day:00}";
                 string fileName = $"{task.Request.CustomerName}_{strStart}_{strEnd}.pdf";
 
-                // Upload to Azure
-                _logger.LogInformation("Uploading Traffic Light ticket PDF to Azure for {Customer}, ReportID: {ReportId}, FileName: {FileName}",
+                // Upload to Azure and GCS (dual-write)
+                _logger.LogInformation("Uploading Traffic Light ticket PDF for {Customer}, ReportID: {ReportId}, FileName: {FileName}",
                     task.Request.CustomerName, task.ReportId, fileName);
-                string blobUrl = await _blobService.UploadFileAsync(pdfBytes, fileName, "trafficlights");
-                _logger.LogInformation("Uploaded Traffic Light ticket PDF to Azure for {Customer}, ReportID: {ReportId}, BlobUrl: {BlobUrl}",
-                    task.Request.CustomerName, task.ReportId, blobUrl);
+                var uploadResult = await _dualStorageService.UploadAsync(
+                    pdfBytes, fileName, "trafficlights",
+                    task.Request.CustomerName, "trafficlights", task.Request.StartDate);
+                _logger.LogInformation("Uploaded Traffic Light ticket PDF for {Customer}, ReportID: {ReportId}, AzureUrl: {AzureUrl}, GcsUrl: {GcsUrl}",
+                    task.Request.CustomerName, task.ReportId, uploadResult.AzureUrl, uploadResult.GcsUrl ?? "N/A");
 
                 // Update report status to completed/uploaded with ticket count
                 _logger.LogInformation("Updating report status to Uploaded for {Customer}, ReportID: {ReportId}",
                     task.Request.CustomerName, task.ReportId);
-                await UpdateReportAsync(task.ReportId, "Uploaded", userId, blobUrl, ticketCount: response.TicketCount);
+                await UpdateReportAsync(task.ReportId, "Uploaded", userId, uploadResult.AzureUrl,
+                    ticketCount: response.TicketCount, gcsUrl: uploadResult.GcsUrl);
 
                 _logger.LogInformation("Completed Traffic Light ticket report for {Customer}, ReportID: {ReportId}, TicketCount: {Count}",
                     task.Request.CustomerName, task.ReportId, response.TicketCount);
@@ -293,11 +296,14 @@ public class TrafficLightsInvoiceController : ControllerBase
 
                     var pdfBytes = _service.GenerateTicketBillingPdf(response);
 
-                    string blobUrl = await _blobService.UploadFileAsync(pdfBytes, fileName, "trafficlights");
-                    await UpdateReportAsync(createdReport.ReportID, "Uploaded", userId, blobUrl, ticketCount: response.TicketCount);
+                    var uploadResult = await _dualStorageService.UploadAsync(
+                        pdfBytes, fileName, "trafficlights",
+                        request.CustomerName, "trafficlights", request.StartDate);
+                    await UpdateReportAsync(createdReport.ReportID, "Uploaded", userId, uploadResult.AzureUrl,
+                        ticketCount: response.TicketCount, gcsUrl: uploadResult.GcsUrl);
 
-                    _logger.LogInformation("Completed synchronous Traffic Light ticket PDF for {Customer}, Size: {Size} bytes",
-                        request.CustomerName, pdfBytes.Length);
+                    _logger.LogInformation("Completed synchronous Traffic Light ticket PDF for {Customer}, Size: {Size} bytes, GcsUrl: {GcsUrl}",
+                        request.CustomerName, pdfBytes.Length, uploadResult.GcsUrl ?? "N/A");
 
                     return File(pdfBytes, "application/pdf", fileName);
                 }

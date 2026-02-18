@@ -17,6 +17,7 @@ public class Report
     public string GenerationStatus { get; set; }
     public string ReportName { get; set; }
     public string BlobURL { get; set; }
+    public string? GcsURL { get; set; }
     public int TicketCount { get; set; }  // Number of items in the report (fixtures or tickets)
     public DateTime CreatedDate { get; set; }  // Automatically generated
     public DateTime? UpdatedDate { get; set; }  // Automatically generated

@@ -10,7 +10,7 @@ public class StreetlightsInvoiceController : ControllerBase
 {
     private readonly StreetLightsService _service;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly AzureBlobService _blobService;
+    private readonly DualStorageService _dualStorageService;
     private readonly ILogger<StreetlightsInvoiceController> _logger;
     private readonly DataLayerBase _dl;
     // API key for bypassing standard auth (for testing/internal use)
@@ -19,16 +19,16 @@ public class StreetlightsInvoiceController : ControllerBase
     public StreetlightsInvoiceController(
         StreetLightsService service,
         IServiceScopeFactory scopeFactory,
-        AzureBlobService blobService,
+        DualStorageService dualStorageService,
         DataLayerBase dl,
         ILogger<StreetlightsInvoiceController> logger)
     {
         _dl = dl;
         _service = service;
         _scopeFactory = scopeFactory;
-        _blobService = blobService;
+        _dualStorageService = dualStorageService;
         _logger = logger;
-        
+
     }
 
     /// <summary>
@@ -116,15 +116,13 @@ public class StreetlightsInvoiceController : ControllerBase
        
     }
 
-    private async Task UpdateReportAsync(Guid reportId, string status, int updateById, string? blobUrl = null, bool isDeleted = false, string? message = null, int? ticketCount = null)
+    private async Task UpdateReportAsync(Guid reportId, string status, int updateById, string? blobUrl = null, bool isDeleted = false, string? message = null, int? ticketCount = null, string? gcsUrl = null)
     {
-
-        int del = isDeleted?1:0;
-
         var sql = @"
         UPDATE Report
         SET GenerationStatus = @status,
             BlobURL = @blobUrl,
+            GcsURL = COALESCE(@gcsUrl, GcsURL),
             IsDeleted = @isDeleted,
             Message = @message,
             TicketCount = COALESCE(@ticketCount, TicketCount),
@@ -132,19 +130,17 @@ public class StreetlightsInvoiceController : ControllerBase
             UpdatedByID = @updateById
         WHERE ReportID = @reportId";
 
-        // 2. Pass the variables in an anonymous object
-        // Dapper maps these names to the '@' parameters in your SQL
         await _dl.ExecuteAsync(sql, new
         {
             reportId,
             status,
             updateById,
             blobUrl,
+            gcsUrl,
             isDeleted = isDeleted ? 1 : 0,
             message,
             ticketCount
         });
-
     }
 
     private async Task SaveReportDataAsync(Guid reportId, object reportData)
@@ -204,17 +200,20 @@ public class StreetlightsInvoiceController : ControllerBase
                 string strEnd = $"{task.Request.EndDate.Year}{task.Request.EndDate.Month:00}{task.Request.EndDate.Day:00}";
                 string fileName = $"{task.Request.CustomerName}_{strStart}_{strEnd}.pdf";
 
-                // Upload to Azure
-                _logger.LogInformation("Uploading fixture PDF to Azure for {Customer}, ReportID: {ReportId}, FileName: {FileName}",
+                // Upload to Azure and GCS (dual-write)
+                _logger.LogInformation("Uploading fixture PDF for {Customer}, ReportID: {ReportId}, FileName: {FileName}",
                     task.Request.CustomerName, task.ReportId, fileName);
-                string blobUrl = await _blobService.UploadFileAsync(pdfBytes, fileName, "streetlights");
-                _logger.LogInformation("Uploaded fixture PDF to Azure for {Customer}, ReportID: {ReportId}, BlobUrl: {BlobUrl}",
-                    task.Request.CustomerName, task.ReportId, blobUrl);
+                var uploadResult = await _dualStorageService.UploadAsync(
+                    pdfBytes, fileName, "streetlights",
+                    task.Request.CustomerName, "streetlights", task.Request.StartDate);
+                _logger.LogInformation("Uploaded fixture PDF for {Customer}, ReportID: {ReportId}, AzureUrl: {AzureUrl}, GcsUrl: {GcsUrl}",
+                    task.Request.CustomerName, task.ReportId, uploadResult.AzureUrl, uploadResult.GcsUrl ?? "N/A");
 
                 // Update report status to completed/uploaded with fixture count
                 _logger.LogInformation("Updating report status to Uploaded for {Customer}, ReportID: {ReportId}",
                     task.Request.CustomerName, task.ReportId);
-                await UpdateReportAsync(task.ReportId, "Uploaded", userId, blobUrl, ticketCount: response.TotalFixtures);
+                await UpdateReportAsync(task.ReportId, "Uploaded", userId, uploadResult.AzureUrl,
+                    ticketCount: response.TotalFixtures, gcsUrl: uploadResult.GcsUrl);
 
                 _logger.LogInformation("Completed fixture report for {Customer}, ReportID: {ReportId}, FixtureCount: {Count}",
                     task.Request.CustomerName, task.ReportId, response.TotalFixtures);
@@ -291,17 +290,20 @@ public class StreetlightsInvoiceController : ControllerBase
                 string strEnd = $"{task.Request.EndDate.Year}{task.Request.EndDate.Month:00}{task.Request.EndDate.Day:00}";
                 string fileName = $"{task.Request.CustomerName}_{strStart}_{strEnd}.pdf";
 
-                // Upload to Azure
-                _logger.LogInformation("Uploading ticket PDF to Azure for {Customer}, ReportID: {ReportId}, FileName: {FileName}",
+                // Upload to Azure and GCS (dual-write)
+                _logger.LogInformation("Uploading ticket PDF for {Customer}, ReportID: {ReportId}, FileName: {FileName}",
                     task.Request.CustomerName, task.ReportId, fileName);
-                string blobUrl = await _blobService.UploadFileAsync(pdfBytes, fileName, "streetlights");
-                _logger.LogInformation("Uploaded ticket PDF to Azure for {Customer}, ReportID: {ReportId}, BlobUrl: {BlobUrl}",
-                    task.Request.CustomerName, task.ReportId, blobUrl);
+                var uploadResult = await _dualStorageService.UploadAsync(
+                    pdfBytes, fileName, "streetlights",
+                    task.Request.CustomerName, "streetlights", task.Request.StartDate);
+                _logger.LogInformation("Uploaded ticket PDF for {Customer}, ReportID: {ReportId}, AzureUrl: {AzureUrl}, GcsUrl: {GcsUrl}",
+                    task.Request.CustomerName, task.ReportId, uploadResult.AzureUrl, uploadResult.GcsUrl ?? "N/A");
 
                 // Update report status to completed/uploaded with ticket count
                 _logger.LogInformation("Updating report status to Uploaded for {Customer}, ReportID: {ReportId}",
                     task.Request.CustomerName, task.ReportId);
-                await UpdateReportAsync(task.ReportId, "Uploaded", userId, blobUrl, ticketCount: response.TicketCount);
+                await UpdateReportAsync(task.ReportId, "Uploaded", userId, uploadResult.AzureUrl,
+                    ticketCount: response.TicketCount, gcsUrl: uploadResult.GcsUrl);
 
                 _logger.LogInformation("Completed ticket report for {Customer}, ReportID: {ReportId}, TicketCount: {Count}",
                     task.Request.CustomerName, task.ReportId, response.TicketCount);
@@ -385,11 +387,14 @@ public class StreetlightsInvoiceController : ControllerBase
 
                     var pdfBytes = _service.GenerateFixtureBillingPdf(response);
 
-                    string blobUrl = await _blobService.UploadFileAsync(pdfBytes, fileName, "streetlights");
-                    await UpdateReportAsync(createdReport.ReportID, "Uploaded", userId, blobUrl, ticketCount: response.TotalFixtures);
+                    var uploadResult = await _dualStorageService.UploadAsync(
+                        pdfBytes, fileName, "streetlights",
+                        request.CustomerName, "streetlights", request.StartDate);
+                    await UpdateReportAsync(createdReport.ReportID, "Uploaded", userId, uploadResult.AzureUrl,
+                        ticketCount: response.TotalFixtures, gcsUrl: uploadResult.GcsUrl);
 
-                    _logger.LogInformation("Completed synchronous fixture PDF for {Customer}, Size: {Size} bytes",
-                        request.CustomerName, pdfBytes.Length);
+                    _logger.LogInformation("Completed synchronous fixture PDF for {Customer}, Size: {Size} bytes, GcsUrl: {GcsUrl}",
+                        request.CustomerName, pdfBytes.Length, uploadResult.GcsUrl ?? "N/A");
 
                     return File(pdfBytes, "application/pdf", fileName);
                 }
@@ -555,11 +560,14 @@ public class StreetlightsInvoiceController : ControllerBase
 
                     var pdfBytes = _service.GenerateTicketBillingPdf(response);
 
-                    string blobUrl = await _blobService.UploadFileAsync(pdfBytes, fileName, "streetlights");
-                    await UpdateReportAsync(createdReport.ReportID, "Uploaded", userId, blobUrl, ticketCount: response.TicketCount);
+                    var uploadResult = await _dualStorageService.UploadAsync(
+                        pdfBytes, fileName, "streetlights",
+                        request.CustomerName, "streetlights", request.StartDate);
+                    await UpdateReportAsync(createdReport.ReportID, "Uploaded", userId, uploadResult.AzureUrl,
+                        ticketCount: response.TicketCount, gcsUrl: uploadResult.GcsUrl);
 
-                    _logger.LogInformation("Completed synchronous ticket PDF for {Customer}, Size: {Size} bytes",
-                        request.CustomerName, pdfBytes.Length);
+                    _logger.LogInformation("Completed synchronous ticket PDF for {Customer}, Size: {Size} bytes, GcsUrl: {GcsUrl}",
+                        request.CustomerName, pdfBytes.Length, uploadResult.GcsUrl ?? "N/A");
 
                     return File(pdfBytes, "application/pdf", fileName);
                 }
