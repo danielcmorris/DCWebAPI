@@ -625,10 +625,12 @@ public class StreetLightsService
 
         // CSS styles
         sb.Append(@"
+            <!DOCTYPE html>
             <html>
             <head>
+            <meta charset=""UTF-8"">
             <style>
-                body { font-family: Arial, sans-serif; font-size: 11pt; margin: 0; padding: 0; }
+                body { font-family: 'Liberation Sans', Arial, sans-serif; font-size: 11pt; margin: 0; padding: 0; }
                 .title { font-size: 24pt; font-weight: bold; text-align: center; margin-bottom: 5px; text-decoration: underline; }
                 .customer { font-size: 14pt; font-weight: bold; text-align: center; margin-bottom: 5px; }
                 .period { font-size: 14pt; font-weight: bold; text-align: center; margin-bottom: 20px; }
@@ -1462,10 +1464,12 @@ public class StreetLightsService
         var sb = new StringBuilder();
 
         sb.Append(@"
+            <!DOCTYPE html>
             <html>
             <head>
+            <meta charset=""UTF-8"">
             <style>
-                body { font-family: Arial, sans-serif; font-size: 10pt; margin: 0; padding: 0; }
+                body { font-family: 'Liberation Sans', Arial, sans-serif; font-size: 10pt; margin: 0; padding: 0; }
                 .title { font-size: 20pt; font-weight: bold; text-align: center; margin-bottom: 5px; text-decoration: underline; }
                 .customer { font-size: 12pt; font-weight: bold; text-align: center; margin-bottom: 3px; }
                 .period { font-size: 12pt; font-weight: bold; text-align: center; margin-bottom: 15px; }
@@ -1572,10 +1576,12 @@ public class StreetLightsService
         var sb = new StringBuilder();
 
         sb.Append(@"
+            <!DOCTYPE html>
             <html>
             <head>
+            <meta charset=""UTF-8"">
             <style>
-                body { font-family: Arial, sans-serif; font-size: 11pt; margin: 0; padding: 0; }
+                body { font-family: 'Liberation Sans', Arial, sans-serif; font-size: 11pt; margin: 0; padding: 0; }
                 .summary-title { font-size: 14pt; font-weight: bold; margin-bottom: 15px; }
                 .total-row { margin-bottom: 8px; }
                 .total-label { display: inline-block; width: 250px; }

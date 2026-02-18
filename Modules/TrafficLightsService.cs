@@ -1148,10 +1148,12 @@ public class TrafficLightsService
         var sb = new StringBuilder();
 
         sb.Append(@"
+            <!DOCTYPE html>
             <html>
             <head>
+            <meta charset=""UTF-8"">
             <style>
-                body { font-family: Arial, sans-serif; font-size: 10pt; margin: 0; padding: 0; }
+                body { font-family: 'Liberation Sans', Arial, sans-serif; font-size: 10pt; margin: 0; padding: 0; }
                 .location-type-header { font-size: 14pt; font-weight: bold; text-decoration: underline; margin-bottom: 15px; }
                 .location-header { font-weight: bold; margin-bottom: 5px; border-bottom: 2px solid #000; padding-bottom: 3px; }
                 .ticket-section { margin-bottom: 20px; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
@@ -1317,10 +1319,12 @@ public class TrafficLightsService
         decimal totalExtras = data.TotalLaborCost + data.TotalEquipmentCost + data.TotalMaterialsCost;
 
         sb.Append(@"
+            <!DOCTYPE html>
             <html>
             <head>
+            <meta charset=""UTF-8"">
             <style>
-                body { font-family: Arial, sans-serif; font-size: 11pt; margin: 0; padding: 0; }
+                body { font-family: 'Liberation Sans', Arial, sans-serif; font-size: 11pt; margin: 0; padding: 0; }
                 .report-title { font-size: 16pt; font-weight: bold; text-align: center; margin-bottom: 5px; }
                 .customer-name { font-size: 14pt; font-weight: bold; text-align: center; margin-bottom: 3px; }
                 .date-range { font-size: 12pt; font-weight: bold; text-align: center; margin-bottom: 25px; }
