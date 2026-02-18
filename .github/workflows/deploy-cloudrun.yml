@@ -2,7 +2,7 @@ name: Build and Deploy to Cloud Run
 
 on:
   push:
-    branches: [linux/master]
+    branches: [main]
 
 env:
   PROJECT_ID: morrisdev-203721
