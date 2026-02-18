@@ -4,9 +4,10 @@
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
 
-# HIDE settings
+# HIDE settings (except Production which has no secrets)
 appsettings.json
 appsettings.*.json
+!appsettings.Production.json
 
 # Claude context files (large OpenAPI specs can be re-downloaded)
 .claude/*.json
