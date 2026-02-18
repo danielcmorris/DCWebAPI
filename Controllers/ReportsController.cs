@@ -479,7 +479,7 @@ public class ReportsController : ControllerBase
                     CreatedByID = @CreatedByID,
                     UpdatedDate = NOW(),
                     UpdatedByID = @CreatedByID,
-                    IsDeleted = false
+                    IsDeleted = 0
                 WHERE ReportID = @ReportID;";
  
                 await _dl.ExecuteAsync(sql, new
@@ -510,15 +510,15 @@ public class ReportsController : ControllerBase
             UpdatedByID = @UpdatedByID
         WHERE ReportID = @ReportID;";
 
-         
+
             await _dl.ExecuteAsync(sql, new
             {
                 GenerationStatus = status,
                 BlobURL = blobUrl,
-                IsDeleted = isDeleted,
+                IsDeleted = isDeleted ? 1 : 0,
                 Message = message,
                 ReportID = reportId,
-                UpdatedByID = updateById  // Assuming UserModule provides UserId
+                UpdatedByID = updateById
             });
       
     }

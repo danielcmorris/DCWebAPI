@@ -133,7 +133,7 @@ public class TrafficLightsInvoiceController : ControllerBase
             status,
             updateById,
             blobUrl,
-            isDeleted,
+            isDeleted = isDeleted ? 1 : 0,
             message,
             ticketCount
         });
