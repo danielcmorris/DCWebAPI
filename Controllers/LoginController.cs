@@ -27,10 +27,10 @@ namespace DCElectricWebAPI.Controllers
         public async Task<IActionResult> GetBySession(string sid)
         {
 
-            string sql = "SELECT * FROM fn_security_user_by_session_id(@SessionID)";
-           
+            string sql = "SELECT * FROM fn_security_user_by_session_id(@p_session_id)";
+
                 var parameters = new DynamicParameters();
-                parameters.Add("@SessionID", sid, DbType.String);
+                parameters.Add("@p_session_id", sid, DbType.String);
 
                 var x = dl.Query<User>(sql, parameters);
                 return Ok(x);
@@ -46,8 +46,8 @@ namespace DCElectricWebAPI.Controllers
             try
             {
                 ResponseMessage = dl.Connection.ExecuteScalar<string>(
-                    "SELECT usp_login(@LoginName, @Password)",
-                    new { LoginName = creds.UserName, Password = creds.Password });
+                    "SELECT usp_login(@p_login_name, @p_password)",
+                    new { p_login_name = creds.UserName, p_password = creds.Password });
             }
             catch (Exception ex)
             {
