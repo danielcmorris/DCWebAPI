@@ -2,7 +2,7 @@ using DCElectricWebAPI.Models;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json.Linq;
 using System.Text;
-using WebSupergoo.ABCpdf12;
+using WebSupergoo.ABCpdf13;
 using static DCElectricWebAPI.Models.QuickBaseLibrary;
 
 namespace DCElectricWebAPI.Modules;
@@ -1022,7 +1022,15 @@ public class TrafficLightsService
     public byte[] GenerateTicketBillingPdf(TrafficTicketBillingResponse data)
     {
         using var doc = new Doc();
-        doc.HtmlOptions.Engine = EngineType.MSHtml;
+        // Use Chrome123 engine on Linux (ABCChrome), MSHtml on Windows
+        if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
+        {
+            doc.HtmlOptions.Engine = EngineType.Chrome123;
+        }
+        else
+        {
+            doc.HtmlOptions.Engine = EngineType.MSHtml;
+        }
 
         // Set up page
         doc.MediaBox.String = "A4";

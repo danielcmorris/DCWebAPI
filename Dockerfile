@@ -14,8 +14,7 @@ RUN dotnet publish -c Release -o /app/publish --runtime linux-x64 --self-contain
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 
-# Install ABCpdf dependencies for Linux
-# libgdiplus for GDI+ support, fontconfig for fonts, libcurl4 for network, and common fonts
+# Install ABCpdf dependencies for Linux including Chromium for HTML rendering
 RUN apt-get update && apt-get install -y \
     libgdiplus \
     libc6-dev \
@@ -28,10 +27,29 @@ RUN apt-get update && apt-get install -y \
     curl \
     fonts-liberation \
     fonts-dejavu-core \
+    # Chromium and dependencies for ABCpdf HTML rendering
+    chromium \
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpango-1.0-0 \
+    libcairo2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create logs directory
 RUN mkdir -p /app/logs
+
+# Set Chromium path for ABCpdf
+ENV ABCPDF_CHROMIUM_PATH=/usr/bin/chromium
 
 # Copy published app (includes native ABCpdf libraries for linux-x64)
 COPY --from=build /app/publish .
