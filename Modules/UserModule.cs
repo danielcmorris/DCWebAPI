@@ -22,7 +22,7 @@ namespace DCElectricWebAPI.Modules
 
         private User GetUserBySessionID(string sid)
         {
-            string sql = $"SELECT * FROM  [dbo].[fnSecurity_UserBySessionId]('{SessionID}');";
+            string sql = $"SELECT * FROM fn_security_user_by_session_id('{SessionID}');";
            
                 var userSet = _dl.Query<User>(sql);
                 return userSet.First();

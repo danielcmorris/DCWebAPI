@@ -443,8 +443,8 @@ public class ReportsController : ControllerBase
     {
         var sql = @"
             INSERT INTO Report (CustomerName, StartDate, EndDate, CreatedByID, GenerationStatus, ReportName, ReportType, StrButton, BlobURL, CreatedDate, UpdatedDate)
-            OUTPUT INSERTED.ReportId  -- Capture the inserted ReportId
-            VALUES (@CustomerName, @StartDate, @EndDate, @CreatedByID, @GenerationStatus, @ReportName,  @ReportType, @StrButton, @BlobURL, GETDATE(),GETDATE());";
+            VALUES (@CustomerName, @StartDate, @EndDate, @CreatedByID, @GenerationStatus, @ReportName,  @ReportType, @StrButton, @BlobURL, NOW(), NOW())
+            RETURNING ReportId;";
 
         
             // Capture the inserted ReportId
@@ -472,14 +472,14 @@ public class ReportsController : ControllerBase
         try
         {
             var sql = @"
-                UPDATE Report 
+                UPDATE Report
                 SET GenerationStatus = @GenerationStatus,
                     BlobURL = @BlobURL,
-                    CreatedDate = GETDATE(),
+                    CreatedDate = NOW(),
                     CreatedByID = @CreatedByID,
-                    UpdatedDate = GETDATE(),
+                    UpdatedDate = NOW(),
                     UpdatedByID = @CreatedByID,
-                    IsDeleted = 0
+                    IsDeleted = false
                 WHERE ReportID = @ReportID;";
  
                 await _dl.ExecuteAsync(sql, new
@@ -501,12 +501,12 @@ public class ReportsController : ControllerBase
     private async Task UpdateReportAsync(Guid reportId, string status, int updateById, string blobUrl = null, bool isDeleted = false, string message = null)
     {
         var sql = @"
-        UPDATE Report 
+        UPDATE Report
         SET GenerationStatus = @GenerationStatus,
             BlobURL = @BlobURL,
             IsDeleted = @IsDeleted,
             Message = @Message,
-            UpdatedDate = GETDATE(),
+            UpdatedDate = NOW(),
             UpdatedByID = @UpdatedByID
         WHERE ReportID = @ReportID;";
 
@@ -538,11 +538,12 @@ public class ReportsController : ControllerBase
     private async Task<Report> FetchReportByCustomerAndDateAsync(string customerName, DateTime startDate, DateTime endDate)
     {
         var sql = @"
-        SELECT TOP 1 ReportId, CustomerName, StartDate, EndDate, CreatedByID, UpdatedByID, GenerationStatus, ReportName, BlobURL, ReportType, StrButton, CreatedDate, UpdatedDate
+        SELECT ReportId, CustomerName, StartDate, EndDate, CreatedByID, UpdatedByID, GenerationStatus, ReportName, BlobURL, ReportType, StrButton, CreatedDate, UpdatedDate
         FROM Report
         WHERE CustomerName = @CustomerName
-        AND CAST(StartDate AS DATE) = CAST(@StartDate AS DATE)
-        AND CAST(EndDate AS DATE) = CAST(@EndDate AS DATE);";  // Compare only the date portion
+        AND StartDate::DATE = @StartDate::DATE
+        AND EndDate::DATE = @EndDate::DATE
+        LIMIT 1;";  // Compare only the date portion
 
        
             var report = await _dl.QuerySingleOrDefaultAsync<Report>(sql, new
@@ -558,7 +559,7 @@ public class ReportsController : ControllerBase
 
     private User GetUserBySessionID(string sid)
     {
-        string sql = $"SELECT * FROM  [dbo].[fnSecurity_UserBySessionId]('{sid}');";
+        string sql = $"SELECT * FROM fn_security_user_by_session_id('{sid}');";
        
             var userSet = _dl.Query<User>(sql);
             return userSet.First();

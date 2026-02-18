@@ -66,7 +66,7 @@ public class TrafficLightsInvoiceController : ControllerBase
     /// </summary>
     private User? GetUserBySessionID(string sid)
     {
-        string sql = $"SELECT * FROM [dbo].[fnSecurity_UserBySessionId]('{sid}');";
+        string sql = $"SELECT * FROM fn_security_user_by_session_id('{sid}');";
         var userSet = _dl.Query<User>(sql);
         return userSet.FirstOrDefault();
     }
@@ -90,8 +90,8 @@ public class TrafficLightsInvoiceController : ControllerBase
     {
         var sql = @"
             INSERT INTO Report (CustomerName, StartDate, EndDate, CreatedByID, GenerationStatus, ReportName, ReportType, StrButton, BlobURL, TicketCount, CreatedDate, UpdatedDate)
-            OUTPUT INSERTED.ReportId
-            VALUES (@CustomerName, @StartDate, @EndDate, @CreatedByID, @GenerationStatus, @ReportName, @ReportType, @StrButton, @BlobURL, @TicketCount, GETDATE(), GETDATE());";
+            VALUES (@CustomerName, @StartDate, @EndDate, @CreatedByID, @GenerationStatus, @ReportName, @ReportType, @StrButton, @BlobURL, @TicketCount, NOW(), NOW())
+            RETURNING ReportId;";
 
         var reportId = await _dl.QuerySingleAsync<Guid>(sql, new
         {
@@ -123,7 +123,7 @@ public class TrafficLightsInvoiceController : ControllerBase
             IsDeleted = @isDeleted,
             Message = @message,
             TicketCount = COALESCE(@ticketCount, TicketCount),
-            UpdatedDate = GETDATE(),
+            UpdatedDate = NOW(),
             UpdatedByID = @updateById
         WHERE ReportID = @reportId";
 

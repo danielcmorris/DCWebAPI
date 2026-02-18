@@ -1,10 +1,7 @@
 ﻿using Dapper;
 using DCElectricWebAPI.Models;
 using DCElectricWebAPI.Modules;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using System.Data;
-using System.Reflection.PortableExecutable;
 
 namespace DCElectricWebAPI.Controllers.Admin
 {
@@ -22,7 +19,7 @@ namespace DCElectricWebAPI.Controllers.Admin
         [HttpGet]
         public async Task<IActionResult> Get()
         {
-            string sql = "Select UserID, FirstName, LastName, Email, Phone, UserLevel,Permissions,Status from [User] Where Status<>'Deleted'";
+            string sql = "SELECT userid, firstname, lastname, email, phone, userlevel, permissions, status FROM users WHERE status <> 'Deleted'";
            
             var x = dl.Query<User>(sql);
 
@@ -32,7 +29,7 @@ namespace DCElectricWebAPI.Controllers.Admin
         [HttpGet("{id}")]
         public async Task<IActionResult> GetUser(int id)
         {
-            string sql = $"Select UserID, FirstName, LastName, Email, Phone, UserLevel, Permissions,Status from [User] Where Status<>'Deleted' and UserID={id}";
+            string sql = $"SELECT userid, firstname, lastname, email, phone, userlevel, permissions, status FROM users WHERE status <> 'Deleted' AND userid = {id}";
           
                 var x = dl.Query<User>(sql);
                 return Ok(x);
@@ -47,22 +44,18 @@ namespace DCElectricWebAPI.Controllers.Admin
         public async Task<IActionResult> AddUser(User userParams, [FromQuery] string sid)
         {
  
-            var sql = "uspAddUser";
-
-            var parameters = new DynamicParameters();
-            parameters.Add("@Login", userParams.Email, DbType.String);
-            parameters.Add("@Password", userParams.Password, DbType.String);
-            parameters.Add("@FirstName", userParams.FirstName, DbType.String);
-            parameters.Add("@LastName", userParams.LastName, DbType.String);
-            parameters.Add("@UserLevel", userParams.UserLevel, DbType.String);
-            parameters.Add("@Permissions", userParams.Permissions, DbType.String);
-            parameters.Add("@SessionID", sid, DbType.String);
-            parameters.Add("@responseMessage", dbType: DbType.String, size: 250, direction: ParameterDirection.Output);
-
-            dl.Connection.Execute("dbo.uspAddUser", parameters, commandType: CommandType.StoredProcedure);
-
-            // Get the value of the output parameter
-            var ResponseMessage = parameters.Get<string>("@responseMessage");
+            var ResponseMessage = dl.Connection.ExecuteScalar<string>(
+                "SELECT usp_add_user(@Login, @Password, @FirstName, @LastName, @UserLevel, @Permissions, @SessionID)",
+                new
+                {
+                    Login = userParams.Email,
+                    Password = userParams.Password,
+                    FirstName = userParams.FirstName,
+                    LastName = userParams.LastName,
+                    UserLevel = userParams.UserLevel,
+                    Permissions = userParams.Permissions,
+                    SessionID = sid
+                });
 
 
             return Ok(ResponseMessage);
@@ -76,21 +69,21 @@ namespace DCElectricWebAPI.Controllers.Admin
 
 
           
-                var sql = "uspUpdateUser";
-
-                var parameters = new DynamicParameters();
-                parameters.Add("@UserID", id, DbType.Int64);
-                parameters.Add("@Email", userParams.Email, DbType.String);
-                parameters.Add("@Password", userParams.Password, DbType.String);
-                parameters.Add("@FirstName", userParams.FirstName, DbType.String);
-                parameters.Add("@LastName", userParams.LastName, DbType.String);
-                parameters.Add("@UserLevel", userParams.UserLevel, DbType.String);
-                parameters.Add("@Phone", userParams.Phone, DbType.String);
-                parameters.Add("@Permissions", userParams.Permissions, DbType.String);
-                parameters.Add("@Status", userParams.Status, DbType.String);
-                parameters.Add("@SessionID", sid, DbType.String);
-
-                var user = await dl.Connection.QuerySingleAsync<User>(sql, parameters, commandType: CommandType.StoredProcedure);
+                var user = await dl.Connection.QuerySingleAsync<User>(
+                    "SELECT * FROM usp_update_user(@UserID, @FirstName, @LastName, @Password, @Email, @Phone, @UserLevel, @Permissions, @Status, @SessionID)",
+                    new
+                    {
+                        UserID = id,
+                        FirstName = userParams.FirstName,
+                        LastName = userParams.LastName,
+                        Password = userParams.Password,
+                        Email = userParams.Email,
+                        Phone = userParams.Phone,
+                        UserLevel = userParams.UserLevel,
+                        Permissions = userParams.Permissions,
+                        Status = userParams.Status,
+                        SessionID = sid
+                    });
 
 
                 return Ok(user);

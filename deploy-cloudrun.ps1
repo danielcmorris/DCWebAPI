@@ -41,8 +41,21 @@ Write-Host "==========================================" -ForegroundColor Cyan
 # Step 1: Create Artifact Registry repository if it doesn't exist
 Write-Host ""
 Write-Host "[1/5] Ensuring Artifact Registry repository exists..." -ForegroundColor Yellow
-$repoExists = gcloud artifacts repositories describe $Repository --location=$Region --project=$ProjectId 2>$null
+$repoExists = $false
+try {
+    $ErrorActionPreference = "SilentlyContinue"
+    $result = gcloud artifacts repositories describe $Repository --location=$Region --project=$ProjectId 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        $repoExists = $true
+        Write-Host "Repository already exists." -ForegroundColor Green
+    }
+    $ErrorActionPreference = "Stop"
+} catch {
+    $ErrorActionPreference = "Stop"
+}
+
 if (-not $repoExists) {
+    Write-Host "Creating Artifact Registry repository..." -ForegroundColor Yellow
     gcloud artifacts repositories create $Repository `
         --repository-format=docker `
         --location=$Region `

@@ -116,7 +116,7 @@ liL6wAD07iDOwYuA=]");
             template = template.Replace("'", "''");
 
             var dl = new DefaultDataLayer();
-            var sql = $"Select TemplateFile, GoogleStorageURL FROM  ReportTemplate where ISNULL(ReportTemplateName , ReportName) = '{template}' and Status='Active';";
+            var sql = $"Select TemplateFile, GoogleStorageURL FROM  ReportTemplate where COALESCE(ReportTemplateName , ReportName) = '{template}' and Status='Active';";
             var ds = dl.GetData(sql);
             MemoryStream form;
             var gs = new GoogleStorageModule();

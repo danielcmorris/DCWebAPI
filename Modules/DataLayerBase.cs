@@ -1,8 +1,8 @@
 ﻿using Dapper;
 using Microsoft.Extensions.Configuration;
+using Npgsql;
 using System.Data;
 using System.Data.Common;
-using System.Data.SqlClient;
 using System.Reflection;
 using System.Diagnostics;
 
@@ -30,14 +30,14 @@ namespace DCElectricWebAPI.Modules
         }
 
         /// <summary>
-        /// Returns a NEW, OPENED connection. 
+        /// Returns a NEW, OPENED connection.
         /// Relying on Connection Pooling is the standard for Web APIs.
         /// </summary>
         public DbConnection Connection
         {
             get
             {
-                var conn = new SqlConnection(_connectionString);
+                var conn = new NpgsqlConnection(_connectionString);
                 conn.Open();
                 return conn;
             }
@@ -81,11 +81,19 @@ namespace DCElectricWebAPI.Modules
         public void LogIt(string LogType, string Header, string Message)
         {
             var parameters = new { LogType, Header, Message };
-            var sql = "exec newLog @LogType, @Header, @Message";
+            // PostgreSQL syntax - use INSERT or CALL for stored procedures
+            var sql = "INSERT INTO logs (log_type, header, message, created_at) VALUES (@LogType, @Header, @Message, NOW())";
 
             using (var db = Connection)
             {
-                db.Execute(sql, parameters);
+                try
+                {
+                    db.Execute(sql, parameters);
+                }
+                catch
+                {
+                    // Silently fail if logs table doesn't exist yet
+                }
             }
         }
 
@@ -94,12 +102,13 @@ namespace DCElectricWebAPI.Modules
             sql = sql.Replace("\r\n", " ");
             var ds = new DataSet();
 
-            using (var connection = new SqlConnection(_connectionString))
+            using (var connection = new NpgsqlConnection(_connectionString))
             {
-                using (var dcmd = new SqlCommand(sql, connection))
+                connection.Open();
+                using (var dcmd = new NpgsqlCommand(sql, connection))
                 {
                     dcmd.CommandType = CommandType.Text;
-                    var da = new SqlDataAdapter(dcmd);
+                    var da = new NpgsqlDataAdapter(dcmd);
                     da.Fill(ds);
                 }
             }
