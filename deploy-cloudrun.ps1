@@ -95,6 +95,7 @@ gcloud run deploy $ServiceName `
     --max-instances=10 `
     --set-env-vars="ASPNETCORE_ENVIRONMENT=Production" `
     --set-secrets="ConnectionStrings__DefaultConnection=dcelectric-db-connection:latest" `
+    --set-secrets="/app/secrets/gcs-key.json=gcs-service-account-key:latest" `
     --allow-unauthenticated
 
 # Get the service URL
