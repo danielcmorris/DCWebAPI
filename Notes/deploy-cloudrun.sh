@@ -14,7 +14,7 @@ set -e
 
 # Default configuration - customize these
 PROJECT_ID="${GOOGLE_CLOUD_PROJECT:-your-project-id}"
-REGION="${GOOGLE_CLOUD_REGION:-us-west1}"
+REGION="${GOOGLE_CLOUD_REGION:-us-central1}"
 SERVICE_NAME="dcelectric-webapi"
 IMAGE_NAME="dcelectricwebapi"
 REPOSITORY="docker-repo"

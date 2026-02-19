@@ -12,13 +12,15 @@ namespace DCElectricWebAPI.Controllers;
 public class ReportsController : ControllerBase
 {
     private readonly AzureBlobService _blobService;
+    private readonly GoogleCloudStorageService _gcsService;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<ReportsController> _logger;
     private readonly DataLayerBase _dl;
-    public ReportsController(AzureBlobService blobService, IHttpClientFactory httpClientFactory, DataLayerBase db, IConfiguration configuration, ILogger<ReportsController> logger)
+    public ReportsController(AzureBlobService blobService, GoogleCloudStorageService gcsService, IHttpClientFactory httpClientFactory, DataLayerBase db, IConfiguration configuration, ILogger<ReportsController> logger)
     {
         _blobService = blobService;
+        _gcsService = gcsService;
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
         _logger = logger;
@@ -140,7 +142,7 @@ public class ReportsController : ControllerBase
     //    }
     //    catch (Exception ex)
     //    {
-    //        return Problem(ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+    //        return Pr1oblem(ex.Message, statusCode: StatusCodes.Status500InternalServerError);
     //    }
     //}
 
@@ -154,7 +156,7 @@ public class ReportsController : ControllerBase
         try
         {
             string sql = $@"
-                            SELECT ReportId, CustomerName, StartDate, EndDate, CreatedByID, UpdatedByID, GenerationStatus, ReportName, BlobURL,ReportType, StrButton,Message, CreatedDate, UpdatedDate
+                            SELECT ReportId, CustomerName, StartDate, EndDate, CreatedByID, UpdatedByID, GenerationStatus, ReportName, COALESCE(GcsURL, BlobURL) AS BlobURL,GcsURL, ReportType, StrButton,Message, CreatedDate, UpdatedDate
                             FROM Report
                             WHERE IsDeleted = 0 and LOWER(ReportType) = LOWER(@ReportType)
                             ORDER BY CreatedDate DESC";
@@ -217,12 +219,25 @@ public class ReportsController : ControllerBase
             // Decode the blob name in case it's URL-encoded
             var decodedBlobName = Uri.UnescapeDataString(blobName);
 
-            var sasUrl = _blobService.GetSasUrlForBlob(decodedBlobName, inline: true);
-            return Ok(new { url = sasUrl });
+            string signedUrl;
+
+            // Check if this is a Google Cloud Storage URL (gs://)
+            if (decodedBlobName.StartsWith("gs://", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogInformation("Generating GCS signed URL for: {GcsUri}", decodedBlobName);
+                signedUrl = _gcsService.GenerateSignedUrlFromGsUri(decodedBlobName, TimeSpan.FromHours(1));
+            }
+            else
+            {
+                // Azure Blob Storage
+                signedUrl = _blobService.GetSasUrlForBlob(decodedBlobName, inline: true);
+            }
+
+            return Ok(new { url = signedUrl });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to generate SAS URL for blob: {BlobName}", blobName);
+            _logger.LogError(ex, "Failed to generate signed URL for blob: {BlobName}", blobName);
             return Problem(ex.Message, statusCode: StatusCodes.Status500InternalServerError);
         }
     }

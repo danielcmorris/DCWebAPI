@@ -19,7 +19,7 @@ namespace DCElectricWebAPI.Controllers.Admin
         [HttpGet]
         public async Task<IActionResult> Get()
         {
-            string sql = "SELECT userid, firstname, lastname, email, phone, userlevel, permissions, status FROM users WHERE status <> 'Deleted'";
+            string sql = "SELECT userid, firstname, lastname, email, phone, userlevel, permissions, status FROM users WHERE status <> 'DELETED'";
            
             var x = dl.Query<User>(sql);
 

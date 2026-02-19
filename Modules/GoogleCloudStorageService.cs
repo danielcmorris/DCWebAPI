@@ -10,7 +10,9 @@ public class GoogleCloudStorageService
     private readonly GoogleCloudStorageSettings _settings;
     private readonly ILogger<GoogleCloudStorageService> _logger;
     private readonly StorageClient? _storageClient;
+    private readonly GoogleCredential? _credential;
     private readonly bool _isInitialized;
+    private readonly bool _canSignUrls;
 
     public GoogleCloudStorageService(
         IOptions<GoogleCloudStorageSettings> settings,
@@ -21,12 +23,14 @@ public class GoogleCloudStorageService
 
         try
         {
-            _storageClient = InitializeStorageClient();
+            (_storageClient, _credential) = InitializeStorageClient();
             _isInitialized = _storageClient != null;
+            _canSignUrls = _credential?.UnderlyingCredential is ServiceAccountCredential;
 
             if (_isInitialized)
             {
-                _logger.LogInformation("GoogleCloudStorageService initialized successfully for bucket: {Bucket}", _settings.BucketName);
+                _logger.LogInformation("GoogleCloudStorageService initialized successfully for bucket: {Bucket}, CanSignUrls: {CanSign}",
+                    _settings.BucketName, _canSignUrls);
             }
             else
             {
@@ -37,16 +41,17 @@ public class GoogleCloudStorageService
         {
             _logger.LogError(ex, "Failed to initialize GoogleCloudStorageService");
             _isInitialized = false;
+            _canSignUrls = false;
         }
     }
 
     public bool IsEnabled => _isInitialized && _settings.EnableDualWrite;
 
-    private StorageClient? InitializeStorageClient()
+    private (StorageClient?, GoogleCredential?) InitializeStorageClient()
     {
         GoogleCredential? credential = null;
 
-        // Try loading from local file first (development)
+        // Try loading from local file first (development) - required for URL signing
         if (!string.IsNullOrEmpty(_settings.LocalCredentialPath) && File.Exists(_settings.LocalCredentialPath))
         {
             _logger.LogInformation("Loading GCS credentials from local file: {Path}", _settings.LocalCredentialPath);
@@ -63,17 +68,17 @@ public class GoogleCloudStorageService
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to load Application Default Credentials for GCS");
-                return null;
+                return (null, null);
             }
         }
 
         if (credential == null)
         {
             _logger.LogWarning("No GCS credentials found");
-            return null;
+            return (null, null);
         }
 
-        return StorageClient.Create(credential);
+        return (StorageClient.Create(credential), credential);
     }
 
     public async Task<string?> UploadFileAsync(byte[] fileBytes, string objectPath)
@@ -108,16 +113,52 @@ public class GoogleCloudStorageService
 
     public string GenerateSignedUrl(string objectPath, TimeSpan? expiration = null)
     {
-        if (_storageClient == null)
+        if (!_canSignUrls || _credential == null)
         {
-            throw new InvalidOperationException("GCS client not initialized");
+            throw new InvalidOperationException("GCS URL signing requires a service account credential. Configure LocalCredentialPath with a service account key file.");
         }
 
-        var urlSigner = UrlSigner.FromCredential(GoogleCredential.GetApplicationDefault());
+        var urlSigner = UrlSigner.FromCredential(_credential);
         var duration = expiration ?? TimeSpan.FromHours(1);
 
         return urlSigner.Sign(
             _settings.BucketName,
+            objectPath,
+            duration,
+            HttpMethod.Get);
+    }
+
+    /// <summary>
+    /// Generates a signed URL from a gs:// URI (e.g., gs://bucket/path/to/file.pdf)
+    /// </summary>
+    public string GenerateSignedUrlFromGsUri(string gsUri, TimeSpan? expiration = null)
+    {
+        if (!_canSignUrls || _credential == null)
+        {
+            throw new InvalidOperationException("GCS URL signing requires a service account credential. Configure LocalCredentialPath with a service account key file.");
+        }
+
+        if (!gsUri.StartsWith("gs://", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("URI must start with gs://", nameof(gsUri));
+        }
+
+        // Parse gs://bucket/path format
+        var uriWithoutPrefix = gsUri.Substring(5); // Remove "gs://"
+        var slashIndex = uriWithoutPrefix.IndexOf('/');
+        if (slashIndex < 0)
+        {
+            throw new ArgumentException("Invalid gs:// URI format - missing object path", nameof(gsUri));
+        }
+
+        var bucketName = uriWithoutPrefix.Substring(0, slashIndex);
+        var objectPath = uriWithoutPrefix.Substring(slashIndex + 1);
+
+        var urlSigner = UrlSigner.FromCredential(_credential);
+        var duration = expiration ?? TimeSpan.FromHours(1);
+
+        return urlSigner.Sign(
+            bucketName,
             objectPath,
             duration,
             HttpMethod.Get);

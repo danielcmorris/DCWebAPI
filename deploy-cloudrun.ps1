@@ -10,8 +10,8 @@
 #   .\deploy-cloudrun.ps1 [-ProjectId PROJECT_ID] [-Region REGION] [-ServiceName SERVICE_NAME]
 
 param(
-    [string]$ProjectId = $env:GOOGLE_CLOUD_PROJECT,
-    [string]$Region = "us-west1",
+    [string]$ProjectId = "morrisdev-203721", # $env:GOOGLE_CLOUD_PROJECT,
+    [string]$Region = "us-central1",
     [string]$ServiceName = "dcelectric-webapi",
     [string]$ImageName = "dcelectricwebapi",
     [string]$Repository = "docker-repo"
@@ -94,6 +94,7 @@ gcloud run deploy $ServiceName `
     --min-instances=0 `
     --max-instances=10 `
     --set-env-vars="ASPNETCORE_ENVIRONMENT=Production" `
+    --set-secrets="ConnectionStrings__DefaultConnection=dcelectric-db-connection:latest" `
     --allow-unauthenticated
 
 # Get the service URL

@@ -30,6 +30,13 @@ Frontend (Angular) → DCElectricWebAPI → Quickbase REST API
 - Serilog logging
 
 ---
+
+## Deployment
+- **NEVER DEPLOY WITHOUT SPECIFIC INSTRUCTIONS TO DO SO**   
+- the production deployment uses NGINX to reroute data from dcwebui to this api.  DO NOT DEPLOY TO dcewbui
+- to deploy the system execute this in powershell: cd C:\Users\dmorr\Source\Repos\DCElectricWebAPI
+  .\deploy-cloudrun.ps1 -ProjectId "morrisdev-203721" -Region "us-central1" -ServiceName "dcelectric-webapi"
+- 
 ## Local Authentication and AUthorization Strings
 
 
