@@ -1082,7 +1082,11 @@ public class StreetLightsService
             foreach (var record in result.data)
             {
                 JObject obj = record;
-                var isNonInventory = GetStringValue(obj, MaterialFields.NonInventory) == "1";
+                var isNonInventory = GetStringValue(obj, MaterialFields.NonInventory) == "1" ;
+               
+                //this is because sometimes quickbase returns a bool instead of a bit.  no idea why.
+                if (GetStringValue(obj, MaterialFields.NonInventory) == "True") isNonInventory = true;
+
                 var itemId = GetStringValue(obj, MaterialFields.ItemId);
 
                 var material = new MaterialLineItem
