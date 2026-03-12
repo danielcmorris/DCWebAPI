@@ -42,7 +42,23 @@ You should get these results back:
 - roles/serviceusage.serviceUsageConsumer
 - roles/storage.admin
 
-These can be added individually or with a script like this BASH script:
+These can be added individually like this
+ 
+```bash 
+gcloud secrets add-iam-policy-binding dcelectric-service-account-key `
+--member="serviceAccount:682935653385-compute@developer.gserviceaccount.com" `
+--role="roles/secretmanager.secretAccessor" `
+--project=morrisdev-203721
+
+
+gcloud secrets add-iam-policy-binding dcelectric-service-account-key \
+      --member="serviceAccount:dcelectric@morrisdev-203721.iam.gserviceaccount.com"  \
+      --role="roles/secretmanager.secretAccessor"  \
+      --project=morrisdev-203721
+
+```
+
+or with a script like this BASH script:
 ```bash
 SA="serviceAccount:GCS_SERVICE_ACCOUNT"
 PROJECT="{GCS_PROJECT__ID}"
@@ -52,6 +68,7 @@ for role in \
   roles/cloudbuild.builds.editor \
   roles/iam.serviceAccountUser \
   roles/run.admin \
+  roles/secretmanager.secretAccessor \
   roles/serviceusage.serviceUsageConsumer \
   roles/storage.admin; do
     gcloud projects add-iam-policy-binding $PROJECT \
@@ -60,3 +77,4 @@ for role in \
 done
 ```
  
+
