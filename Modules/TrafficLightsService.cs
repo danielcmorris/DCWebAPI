@@ -200,8 +200,8 @@ public class TrafficLightsService
                 customers.Add(new TrafficCustomerData
                 {
                     CustomerName = GetStringValue(obj, CustomerFields.CustomerName),
-                    LMBilledSeparately = GetStringValue(obj, CustomerFields.LMBilledSeparately) == "1",
-                    HasBillingDivisions = GetStringValue(obj, CustomerFields.HasBillingDivisions) == "1"
+                    LMBilledSeparately = GetBoolValue(obj, CustomerFields.LMBilledSeparately),
+                    HasBillingDivisions = GetBoolValue(obj, CustomerFields.HasBillingDivisions)
                 });
             }
         }
@@ -297,6 +297,15 @@ public class TrafficLightsService
                 continue;
             }
 
+            // FIX #1 & #3: If ticket is Not Billable, skip ALL billing data retrieval
+            // (labor, materials, equipment, and maintenance) to match legacy behavior.
+            // The ticket still appears in the report but with no associated cost line items.
+            if (ticket.NotBillable)
+            {
+                _logger.LogInformation("Ticket {TicketId} is Not Billable - skipping all billing data retrieval", ticket.TicketId);
+                continue;
+            }
+
             // Check if this is a routine maintenance ticket
             if (ticket.IsRoutineMaintenance)
             {
@@ -312,26 +321,25 @@ public class TrafficLightsService
             else
             {
                 // Standard billing - get labor, materials, equipment
-                bool skipBilling = ticket.NotBillable;
-
                 // Get materials
                 ticket.MaterialItems = await GetMaterialsForTicketAsync(ticket.TicketId, request.CustomerName);
 
-                // Determine if we should bill labor and equipment
-                bool shouldBillLaborEquipment = !skipBilling && ShouldBillLaborAndEquipment(ticket.MaterialItems);
+                // FIX #2: Removed ShouldBillLaborAndEquipment() / Lump Sum check.
+                // The legacy Traffic Report does not suppress labor/equipment based on
+                // lump sum materials — that logic belongs only in StreetLight reports.
 
                 // Get labor
                 ticket.LaborItems = await GetLaborForTicketAsync(
                     ticket.TicketId,
                     request.CustomerName,
                     technicians,
-                    shouldBillLaborEquipment);
+                    true);
 
                 // Get equipment
                 ticket.EquipmentItems = await GetEquipmentForTicketAsync(
                     ticket.TicketId,
                     request.CustomerName,
-                    shouldBillLaborEquipment);
+                    true);
             }
         }
 
@@ -371,6 +379,11 @@ public class TrafficLightsService
             .OrderByDescending(m => m.TotalQuantity)
             .ToList();
 
+        // FIX #9: Exclude RemovePricing tickets from totals to match legacy behavior.
+        // Legacy never looks up prices for RemovePricing tickets (they stay $0 in memory),
+        // so they contribute $0 to all totals. Filter them out of summary calculations.
+        var billableTickets = tickets.Where(t => !t.RemovePricing).ToList();
+
         // Build response
         var response = new TrafficTicketBillingResponse
         {
@@ -381,13 +394,13 @@ public class TrafficLightsService
             BillingPeriod = GetBillingPeriod(request.StartDate),
             Tickets = tickets,
             TicketCount = tickets.Count,
-            TotalMaintenanceFees = tickets.Where(t => t.IsRoutineMaintenance).Sum(t => t.MaintenanceFee),
-            TotalLaborHours = tickets.Sum(t => t.LaborItems.Sum(l => l.Hours)),
-            TotalLaborCost = tickets.Sum(t => t.TicketLaborTotal),
-            TotalMaterialsCost = tickets.Sum(t => t.TicketMaterialsTotal),
-            TotalEquipmentHours = tickets.Sum(t => t.EquipmentItems.Sum(e => e.Hours)),
-            TotalEquipmentCost = tickets.Sum(t => t.TicketEquipmentTotal),
-            GrandTotal = tickets.Sum(t => t.TicketTotal),
+            TotalMaintenanceFees = billableTickets.Where(t => t.IsRoutineMaintenance).Sum(t => t.MaintenanceFee),
+            TotalLaborHours = billableTickets.Sum(t => t.LaborItems.Sum(l => l.Hours)),
+            TotalLaborCost = billableTickets.Sum(t => t.TicketLaborTotal),
+            TotalMaterialsCost = billableTickets.Sum(t => t.TicketMaterialsTotal),
+            TotalEquipmentHours = billableTickets.Sum(t => t.EquipmentItems.Sum(e => e.Hours)),
+            TotalEquipmentCost = billableTickets.Sum(t => t.TicketEquipmentTotal),
+            GrandTotal = billableTickets.Sum(t => t.TicketTotal),
             MaterialsUsageSummary = materialsUsage
         };
 
@@ -482,10 +495,16 @@ public class TrafficLightsService
                     StartTime = ParseQuickBaseTime(GetStringValue(obj, TicketFields.StartTime)),
                     CompletionDate = ParseQuickBaseDate(GetStringValue(obj, TicketFields.CompletionDate)),
                     CompletionTime = ParseQuickBaseTime(GetStringValue(obj, TicketFields.CompletionTime)),
-                    NotBillable = GetStringValue(obj, TicketFields.NotBillable) == "1",
-                    RemovePricing = GetStringValue(obj, TicketFields.RemovePricing) == "1",
-                    LMBilledSeparately = GetStringValue(obj, TicketFields.LMBilledSeparately) == "1"
+                    NotBillable = GetBoolValue(obj, TicketFields.NotBillable),
+                    RemovePricing = GetBoolValue(obj, TicketFields.RemovePricing),
+                    LMBilledSeparately = GetBoolValue(obj, TicketFields.LMBilledSeparately)
                 };
+
+                // FIX #12: Wrap AgencyId in parentheses to match legacy formatting
+                if (!string.IsNullOrEmpty(ticket.AgencyId))
+                {
+                    ticket.AgencyId = "(" + ticket.AgencyId + ")";
+                }
 
                 tickets.Add(ticket);
             }
@@ -573,10 +592,16 @@ public class TrafficLightsService
                     StartTime = ParseQuickBaseTime(GetStringValue(obj, TicketFields.StartTime)),
                     CompletionDate = ParseQuickBaseDate(GetStringValue(obj, TicketFields.CompletionDate)),
                     CompletionTime = ParseQuickBaseTime(GetStringValue(obj, TicketFields.CompletionTime)),
-                    NotBillable = GetStringValue(obj, TicketFields.NotBillable) == "1",
-                    RemovePricing = GetStringValue(obj, TicketFields.RemovePricing) == "1",
-                    LMBilledSeparately = GetStringValue(obj, TicketFields.LMBilledSeparately) == "1"
+                    NotBillable = GetBoolValue(obj, TicketFields.NotBillable),
+                    RemovePricing = GetBoolValue(obj, TicketFields.RemovePricing),
+                    LMBilledSeparately = GetBoolValue(obj, TicketFields.LMBilledSeparately)
                 };
+
+                // FIX #12: Wrap AgencyId in parentheses to match legacy formatting
+                if (!string.IsNullOrEmpty(ticket.AgencyId))
+                {
+                    ticket.AgencyId = "(" + ticket.AgencyId + ")";
+                }
 
                 tickets.Add(ticket);
             }
@@ -617,7 +642,8 @@ public class TrafficLightsService
                 LaborFields.Date
             },
             where = $"{{{LaborFields.TicketId}.EX.'{EscapeQueryValue(ticketId)}'}}",
-            options = new QBQueryOptions { top = 100 }
+            // FIX #10: Removed top=100 limit to match legacy (no limit). Prevents silent truncation.
+            options = new QBQueryOptions { top = 5000 }
         };
 
         var result = await qb.Query(query);
@@ -674,7 +700,8 @@ public class TrafficLightsService
                 MaterialFields.MaterialDescriptionCalc
             },
             where = $"{{{MaterialFields.TicketId}.EX.'{EscapeQueryValue(ticketId)}'}}",
-            options = new QBQueryOptions { top = 100 }
+            // FIX #10: Removed top=100 limit to match legacy (no limit). Prevents silent truncation.
+            options = new QBQueryOptions { top = 5000 }
         };
 
         var result = await qb.Query(query);
@@ -684,7 +711,7 @@ public class TrafficLightsService
             foreach (var record in result.data)
             {
                 JObject obj = record;
-                var isNonInventory = GetStringValue(obj, MaterialFields.NonInventory) == "True";
+                var isNonInventory = GetBoolValue(obj, MaterialFields.NonInventory);
                 var itemId = GetStringValue(obj, MaterialFields.ItemId);
 
                 var material = new TrafficMaterialLineItem
@@ -702,6 +729,17 @@ public class TrafficLightsService
                 if (isNonInventory)
                 {
                     material.Price = GetDecimalValue(obj, MaterialFields.NonInventorySalePrice);
+
+                    // FIX #7: Legacy system throws an exception when non-inventory
+                    // material has $0 or missing price. We log a warning to flag
+                    // potential data issues without breaking the report.
+                    if (material.Price == 0)
+                    {
+                        _logger.LogWarning(
+                            "Non-inventory material '{Description}' on ticket {TicketId} has $0 or missing sale price. " +
+                            "Legacy system would have failed the entire report for this condition.",
+                            material.Description, ticketId);
+                    }
                 }
                 else
                 {
@@ -740,7 +778,8 @@ public class TrafficLightsService
                 EquipmentFields.Hours
             },
             where = $"{{{EquipmentFields.TicketId}.EX.'{EscapeQueryValue(ticketId)}'}}",
-            options = new QBQueryOptions { top = 100 }
+            // FIX #10: Removed top=100 limit to match legacy (no limit). Prevents silent truncation.
+            options = new QBQueryOptions { top = 5000 }
         };
 
         var result = await qb.Query(query);
@@ -778,7 +817,10 @@ public class TrafficLightsService
     {
         var qb = new QuickBaseConnector(_settings);
 
-        // Try to find exact match first
+        // FIX #6: Match legacy query structure — single query with OR clause:
+        // (ServiceType = X OR ServiceType = "") AND Customer = Y AND LocationType = Z
+        // This allows matching a specific ServiceType OR a blank/catch-all ServiceType record,
+        // which is the same fallback mechanism the legacy system uses.
         var query = new QBQuery
         {
             from = MaintenancePricingTableId,
@@ -786,26 +828,22 @@ public class TrafficLightsService
             {
                 MaintenancePricingFields.MaintenancePrice
             },
-            where = $"{{{MaintenancePricingFields.RelatedCustomer}.EX.'{EscapeQueryValue(customerName)}'}}AND{{{MaintenancePricingFields.ServiceType}.EX.'{EscapeQueryValue(serviceType)}'}}AND{{{MaintenancePricingFields.LocationType}.EX.'{EscapeQueryValue(locationType)}'}}",
-            options = new QBQueryOptions { top = 1 }
+            where = $"({{{MaintenancePricingFields.ServiceType}.EX.'{EscapeQueryValue(serviceType)}'}}OR{{{MaintenancePricingFields.ServiceType}.EX.''}})AND{{{MaintenancePricingFields.RelatedCustomer}.EX.'{EscapeQueryValue(customerName)}'}}AND{{{MaintenancePricingFields.LocationType}.EX.'{EscapeQueryValue(locationType)}'}}",
+            options = new QBQueryOptions { top = 5000 }
         };
 
         var result = await qb.Query(query);
 
         if (result?.data != null && result.data.Count > 0)
         {
-            JObject obj = result.data[0];
-            return GetDecimalValue(obj, MaintenancePricingFields.MaintenancePrice);
-        }
-
-        // Try without location type
-        query.where = $"{{{MaintenancePricingFields.RelatedCustomer}.EX.'{EscapeQueryValue(customerName)}'}}AND{{{MaintenancePricingFields.ServiceType}.EX.'{EscapeQueryValue(serviceType)}'}}";
-        result = await qb.Query(query);
-
-        if (result?.data != null && result.data.Count > 0)
-        {
-            JObject obj = result.data[0];
-            return GetDecimalValue(obj, MaintenancePricingFields.MaintenancePrice);
+            // Legacy sums ALL matching records, so we do the same
+            decimal totalFee = 0;
+            foreach (var record in result.data)
+            {
+                JObject obj = record;
+                totalFee += Math.Round(GetDecimalValue(obj, MaintenancePricingFields.MaintenancePrice), 2, MidpointRounding.AwayFromZero);
+            }
+            return totalFee;
         }
 
         _logger.LogWarning("No maintenance pricing found for {Customer}/{ServiceType}/{LocationType}",
@@ -913,18 +951,15 @@ public class TrafficLightsService
         {
             JObject obj = result.data[0];
             var sellPrice = GetDecimalValue(obj, MaterialPricingFields.SellPrice);
-            var isLumpSum = GetStringValue(obj, MaterialPricingFields.LumpSum) == "1";
+            var isLumpSum = GetBoolValue(obj, MaterialPricingFields.LumpSum);
 
-            // If sell price is 0, fall back to list price
-            if (sellPrice == 0 && listPrice > 0)
-            {
-                return (listPrice, isLumpSum);
-            }
-
+            // FIX #8: Removed zero-price fallback to list price.
+            // Legacy system uses the customer-specific sell price as-is, even if $0.
+            // Only fall back to list price when NO pricing record exists at all.
             return (sellPrice, isLumpSum);
         }
 
-        // No pricing record found - use list price
+        // No pricing record found - use list price (matches legacy behavior)
         return (listPrice, false);
     }
 
@@ -1414,6 +1449,18 @@ public class TrafficLightsService
         if (string.IsNullOrEmpty(strValue)) return 0;
 
         return decimal.TryParse(strValue, out var result) ? result : 0;
+    }
+
+    /// <summary>
+    /// FIX #11: Unified checkbox/boolean parser for QuickBase fields.
+    /// The deprecated XML API returned checkbox values as "1"/"0", while the
+    /// REST API returns JSON booleans which JToken.ToString() converts to "True"/"False".
+    /// This method handles both formats to prevent silent filtering failures.
+    /// </summary>
+    private static bool GetBoolValue(JObject obj, int fieldId)
+    {
+        var strValue = GetStringValue(obj, fieldId);
+        return strValue == "1" || strValue.Equals("true", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string EscapeQueryValue(string value)

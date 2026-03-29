@@ -87,10 +87,14 @@ public class TrafficTicketData
     public bool IsRoutineMaintenance => !string.IsNullOrEmpty(ServiceCategory) &&
         ServiceCategory.Contains("Routine", StringComparison.OrdinalIgnoreCase);
 
-    // Ticket totals
-    public decimal TicketLaborTotal => LaborItems.Sum(l => l.Hours * l.Rate);
-    public decimal TicketMaterialsTotal => MaterialItems.Sum(m => m.Quantity * m.Price);
-    public decimal TicketEquipmentTotal => EquipmentItems.Sum(e => e.Hours * e.Rate);
+    // Ticket totals — FIX #5: Round each line item to 2 decimal places using
+    // MidpointRounding.AwayFromZero to match legacy system's rounding strategy.
+    public decimal TicketLaborTotal => LaborItems.Sum(l =>
+        Math.Round(l.Hours * l.Rate, 2, MidpointRounding.AwayFromZero));
+    public decimal TicketMaterialsTotal => MaterialItems.Sum(m =>
+        Math.Round(m.Quantity * m.Price, 2, MidpointRounding.AwayFromZero));
+    public decimal TicketEquipmentTotal => EquipmentItems.Sum(e =>
+        Math.Round(e.Hours * e.Rate, 2, MidpointRounding.AwayFromZero));
     public decimal TicketTotal => IsRoutineMaintenance
         ? MaintenanceFee
         : TicketLaborTotal + TicketMaterialsTotal + TicketEquipmentTotal;
