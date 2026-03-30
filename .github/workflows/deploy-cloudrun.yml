@@ -28,6 +28,7 @@ jobs:
         run: |
           gcloud run deploy ${{ env.SERVICE_NAME }} \
             --source . \
+            --project ${{ env.PROJECT_ID }} \
             --region ${{ env.REGION }} \
             --platform managed \
             --allow-unauthenticated \
@@ -38,7 +39,7 @@ jobs:
             --concurrency 80 \
             --min-instances 0 \
             --max-instances 10 \
-            --set-env-vars "ASPNETCORE_ENVIRONMENT=Production" \
-            --set-secrets "ConnectionStrings__DefaultConnection=dcelectric-db-connection:latest" \
-            --set-secrets "/app/secrets/gcs-key.json=dcelectric-service-account-key:latest" \
+            --set-env-vars=ASPNETCORE_ENVIRONMENT=Production \
+            --set-secrets=ConnectionStrings__DefaultConnection=dcelectric-db-connection:latest \
+            --set-secrets=/app/secrets/gcs-key.json=dcelectric-service-account-key:latest \
             --quiet
