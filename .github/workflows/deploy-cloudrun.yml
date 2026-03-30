@@ -29,10 +29,16 @@ jobs:
           gcloud run deploy ${{ env.SERVICE_NAME }} \
             --source . \
             --region ${{ env.REGION }} \
+            --platform managed \
             --allow-unauthenticated \
             --port 8080 \
             --memory 2Gi \
             --cpu 2 \
             --timeout 300 \
-            --cpu-boost \
+            --concurrency 80 \
+            --min-instances 0 \
+            --max-instances 10 \
+            --set-env-vars "ASPNETCORE_ENVIRONMENT=Production" \
+            --set-secrets "ConnectionStrings__DefaultConnection=dcelectric-db-connection:latest" \
+            --set-secrets "/app/secrets/gcs-key.json=dcelectric-service-account-key:latest" \
             --quiet
