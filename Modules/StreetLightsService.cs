@@ -741,8 +741,18 @@ public class StreetLightsService
         // For each ticket, get labor, materials, and equipment
         foreach (var ticket in tickets)
         {
-            // Skip billing if ticket is marked as Job or Not Billable
-            bool skipBilling = ticket.NotBillable || ticket.ServiceType == "Job";
+            // Determine if billing should be skipped
+            // BillableOverride cancels both Job and NotBillable flags (legacy behavior)
+            bool skipBilling;
+            if (ticket.BillableOverride)
+            {
+                // BillableOverride forces billing regardless of Job/NotBillable status
+                skipBilling = false;
+            }
+            else
+            {
+                skipBilling = ticket.NotBillable || ticket.ServiceType == "Job";
+            }
 
             // Get materials first (needed to determine if labor/equipment should be billed)
             // Pass billableOverride to handle special pricing when sell price is 0
@@ -1103,7 +1113,17 @@ public class StreetLightsService
                 // Get price
                 if (isNonInventory)
                 {
-                    material.Price = GetDecimalValue(obj, MaterialFields.NonInventorySalePrice);
+                    var nonInventorySalePrice = GetDecimalValue(obj, MaterialFields.NonInventorySalePrice);
+
+                    // Legacy behavior: Non-inventory materials MUST have a sale price > $0
+                    if (nonInventorySalePrice <= 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"Non-inventory material '{material.Description}' on ticket {ticketId} has no sale price. " +
+                            "Please update the Non-Inventory Material SALE Price in QuickBase before generating this report.");
+                    }
+
+                    material.Price = nonInventorySalePrice;
                 }
                 else
                 {
@@ -1239,12 +1259,13 @@ public class StreetLightsService
             var sellPrice = GetDecimalValue(obj, MaterialPricingFields.SellPrice);
             var isLumpSum = GetStringValue(obj, MaterialPricingFields.LumpSum) == "1";
 
-            // If sell price is 0, fall back to list price (legacy app behavior)
+            // Only use list price when sell price is 0 AND BillableOverride is true
+            // If BillableOverride is false and sell price is 0, customer has negotiated $0 pricing
             decimal finalPrice = sellPrice;
-            if (sellPrice == 0 && listPrice > 0)
+            if (sellPrice == 0 && listPrice > 0 && billableOverride)
             {
                 finalPrice = listPrice;
-                _logger.LogInformation("GetMaterialPriceAsync: SellPrice is 0, using ListPrice {ListPrice} for ItemId={ItemId}",
+                _logger.LogInformation("GetMaterialPriceAsync: BillableOverride active, using ListPrice {ListPrice} instead of $0 SellPrice for ItemId={ItemId}",
                     listPrice, itemId);
             }
 
@@ -1350,17 +1371,22 @@ public class StreetLightsService
 
     /// <summary>
     /// Determine if labor and equipment should be billed based on materials
+    /// Legacy behavior: Only bill labor/equipment if at least one material has price > $0
     /// </summary>
     private bool ShouldBillLaborAndEquipment(List<MaterialLineItem> materials)
     {
+        // No materials → charge labor/equipment (legacy behavior)
+        if (!materials.Any())
+            return true;
+
         // If any material is marked as lump sum, don't bill labor/equipment
         // (lump sum means labor/equipment is included in the material price)
         if (materials.Any(m => m.IsLumpSum))
             return false;
 
-        // Otherwise, always bill labor/equipment
-        // The legacy app bills unless there's a lump sum material
-        return true;
+        // Only bill labor/equipment if at least one material has price > $0
+        // If all materials are priced at $0, don't charge for labor/equipment
+        return materials.Any(m => m.Price > 0);
     }
 
     /// <summary>
