@@ -153,12 +153,16 @@ public class StreetLightsService
         public const int Equipment = 9;           // Equipment (text lookup - equipment name)
     }
 
-    // Field IDs for Equipment Pricing table (per FIELD_MAPPINGS.md)
+    // Field IDs for Equipment Pricing table
+    // NOTE: Using field IDs 1,2 to match legacy DCEGSLEntry.cs behavior (lines 1690-1691).
+    // The legacy system queries Date Created (1) and Date Modified (2) instead of
+    // Customer (6) and Equipment (7), which never matches any records, resulting in $0 equipment charges.
+    // Client confirmed this legacy behavior is intentional - equipment should not be charged.
     private static class EquipmentPricingFields
     {
         public const int RecordId = 3;
-        public const int Customer = 6;      // Customer Name
-        public const int Equipment = 7;     // Equipment
+        public const int Customer = 1;      // Legacy uses field 1 (Date Created) - intentionally won't match
+        public const int Equipment = 2;     // Legacy uses field 2 (Date Modified) - intentionally won't match
         public const int EquipmentRate = 9; // Price
     }
 
@@ -711,8 +715,8 @@ public class StreetLightsService
         var pricingLevel = await GetCustomerPricingLevelAsync(request.CustomerName);
         if (string.IsNullOrEmpty(pricingLevel))
         {
-            pricingLevel = "A"; // Default pricing level
-            _logger.LogWarning("No pricing level found for customer {Customer}, defaulting to 'A'", request.CustomerName);
+            pricingLevel = "Z"; // Default pricing level (matches legacy behavior)
+            _logger.LogWarning("No pricing level found for customer {Customer}, defaulting to 'Z'", request.CustomerName);
         }
 
         // Get technicians list for name lookups
