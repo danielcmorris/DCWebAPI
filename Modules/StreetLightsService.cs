@@ -760,7 +760,15 @@ public class StreetLightsService
 
             // Get materials first (needed to determine if labor/equipment should be billed)
             // Pass billableOverride to handle special pricing when sell price is 0
-            ticket.MaterialItems = await GetMaterialsForTicketAsync(ticket.TicketId, pricingLevel, ticket.BillableOverride);
+            // Skip materials for Job tickets that are billed separately (matches legacy behavior)
+            if (skipBilling)
+            {
+                ticket.MaterialItems = new List<MaterialLineItem>();
+            }
+            else
+            {
+                ticket.MaterialItems = await GetMaterialsForTicketAsync(ticket.TicketId, pricingLevel, ticket.BillableOverride);
+            }
 
             // Determine if we should bill labor and equipment
             // BillableOverride forces billing regardless of materials
@@ -898,8 +906,8 @@ public class StreetLightsService
                     StartTime = ParseQuickBaseTime(GetStringValue(obj, TicketFields.StartTime)),
                     CompletionDate = ParseQuickBaseDate(GetStringValue(obj, TicketFields.CompletionDate)),
                     CompletionTime = ParseQuickBaseTime(GetStringValue(obj, TicketFields.CompletionTime)),
-                    NotBillable = GetStringValue(obj, TicketFields.NotBillable) == "1",
-                    BillableOverride = GetStringValue(obj, TicketFields.BillableOverride) == "1"
+                    NotBillable = GetStringValue(obj, TicketFields.NotBillable) == "1" || GetStringValue(obj, TicketFields.NotBillable) == "True",
+                    BillableOverride = GetStringValue(obj, TicketFields.BillableOverride) == "1" || GetStringValue(obj, TicketFields.BillableOverride) == "True"
                 };
 
                 tickets.Add(ticket);
@@ -988,8 +996,8 @@ public class StreetLightsService
                     StartTime = ParseQuickBaseTime(GetStringValue(obj, TicketFields.StartTime)),
                     CompletionDate = ParseQuickBaseDate(GetStringValue(obj, TicketFields.CompletionDate)),
                     CompletionTime = ParseQuickBaseTime(GetStringValue(obj, TicketFields.CompletionTime)),
-                    NotBillable = GetStringValue(obj, TicketFields.NotBillable) == "1",
-                    BillableOverride = GetStringValue(obj, TicketFields.BillableOverride) == "1"
+                    NotBillable = GetStringValue(obj, TicketFields.NotBillable) == "1" || GetStringValue(obj, TicketFields.NotBillable) == "True",
+                    BillableOverride = GetStringValue(obj, TicketFields.BillableOverride) == "1" || GetStringValue(obj, TicketFields.BillableOverride) == "True"
                 };
 
                 tickets.Add(ticket);
