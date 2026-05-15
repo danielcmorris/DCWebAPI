@@ -1261,7 +1261,8 @@ public class StreetLightsService
         {
             JObject obj = result.data[0];
             var sellPrice = GetDecimalValue(obj, MaterialPricingFields.SellPrice);
-            var isLumpSum = GetStringValue(obj, MaterialPricingFields.LumpSum) == "1";
+            var lumpSumValue = GetStringValue(obj, MaterialPricingFields.LumpSum);
+            var isLumpSum = lumpSumValue == "1" || lumpSumValue == "True";
 
             // Only use list price when sell price is 0 AND BillableOverride is true
             // If BillableOverride is false and sell price is 0, customer has negotiated $0 pricing
