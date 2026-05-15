@@ -779,8 +779,8 @@ public class StreetLightsService
             // Get labor
             ticket.LaborItems = await GetLaborForTicketAsync(ticket.TicketId, request.CustomerName, technicians, shouldBillLaborEquipment);
 
-            // Get equipment
-            ticket.EquipmentItems = await GetEquipmentForTicketAsync(ticket.TicketId, request.CustomerName, shouldBillLaborEquipment);
+            // Get equipment - legacy never bills equipment, always pass false
+            ticket.EquipmentItems = await GetEquipmentForTicketAsync(ticket.TicketId, request.CustomerName, false);
         }
 
         // Build materials usage summary
@@ -1384,7 +1384,8 @@ public class StreetLightsService
 
     /// <summary>
     /// Determine if labor and equipment should be billed based on materials
-    /// Legacy behavior: Only bill labor/equipment if at least one material has price > $0
+    /// Legacy behavior from checkForPrice() in DCEGSLEntry.cs:1777-1807:
+    /// Process materials sequentially, return immediately on first LumpSum=1 OR Price>0
     /// </summary>
     private bool ShouldBillLaborAndEquipment(List<MaterialLineItem> materials)
     {
@@ -1392,14 +1393,18 @@ public class StreetLightsService
         if (!materials.Any())
             return true;
 
-        // If any material is marked as lump sum, don't bill labor/equipment
-        // (lump sum means labor/equipment is included in the material price)
-        if (materials.Any(m => m.IsLumpSum))
-            return false;
+        // Process materials in order like legacy checkForPrice()
+        // Return on first match: LumpSum=true → false, Price>0 → true
+        foreach (var material in materials)
+        {
+            if (material.IsLumpSum)
+                return false;  // LumpSum material found first - don't bill labor/equipment
+            if (material.Price > 0)
+                return true;   // Priced material found first - bill labor/equipment
+        }
 
-        // Only bill labor/equipment if at least one material has price > $0
-        // If all materials are priced at $0, don't charge for labor/equipment
-        return materials.Any(m => m.Price > 0);
+        // All materials have $0 price and no LumpSum - don't bill labor/equipment
+        return false;
     }
 
     /// <summary>
