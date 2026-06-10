@@ -1,3 +1,4 @@
+using System.Globalization;
 using DCElectricWebAPI.Models;
 using DCElectricWebAPI.Modules;
 using Microsoft.Extensions.Options;
@@ -6,6 +7,15 @@ using WebSupergoo.ABCpdf12;
 
 var builder = WebApplication.CreateBuilder(args);
 Console.WriteLine($"Current Environment: {builder.Environment.EnvironmentName}");
+
+// Force en-US culture so currency/number formatting (e.g. {value:C}) always
+// renders "$" rather than the invariant culture's generic currency sign "¤".
+// The container sets this via LANG/LC_ALL, but `dotnet run`/IDE launches have no
+// locale env, so .NET defaults to the invariant culture. Setting it in code makes
+// formatting correct in every environment, independent of OS locale.
+var enUsCulture = new CultureInfo("en-US");
+CultureInfo.DefaultThreadCurrentCulture = enUsCulture;
+CultureInfo.DefaultThreadCurrentUICulture = enUsCulture;
 
 // Load environment-specific appsettings (e.g., appsettings.Docker.json)
 builder.Configuration
@@ -24,6 +34,15 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 // Set Serilog as the logging provider
 builder.Host.UseSerilog();
+
+// ABCpdf locates its Chrome (ABCChrome123) HTML-rendering engine relative to the
+// current working directory. In the Cloud Run container the working directory is
+// the app folder where the ABCChrome123 native engine sits, so it's found. But
+// `dotnet run` and IDE launches use the project root as the working directory,
+// where ABCChrome123 doesn't exist -> "Could not find ABCChrome123". Align the
+// working directory with the app base directory so PDF rendering works in every
+// launch mode (no-op in the container where the two are already equal).
+Directory.SetCurrentDirectory(AppContext.BaseDirectory);
 
 // Install ABCpdf license for PDF generation
 var key = builder.Configuration.GetSection("Websupergoo:license").Value;
