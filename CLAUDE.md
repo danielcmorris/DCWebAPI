@@ -18,26 +18,41 @@ This is a **.NET 8 Web API** that serves as a middleware layer between a fronten
 ```
 Frontend (Angular) → DCElectricWebAPI → Quickbase REST API
                           ↓
-                    Azure Blob Storage (PDFs/Reports)
-                    SQL Server (Report metadata/caching)
+                    Google Cloud Storage (PDFs/Reports)
+                    PostgreSQL / Cloud SQL (Report metadata/caching)
 ```
 
 ## Key Technologies
 - .NET 8 / ASP.NET Core Web API
-- Quickbase REST API (JSON-based, NOT the legacy XML API)
-- Azure Blob Storage
-- SQL Server
+- Quickbase REST API (JSON-based)
+- Google Cloud Storage (report/PDF storage), GCP project `morrisdev-203721`
+- PostgreSQL via Npgsql (Cloud SQL in production)
+- ABCpdf (WebSupergoo) for PDF generation — uses the Chrome/`ABCChrome123` engine on Linux
 - Serilog logging
 
 ---
 
 ## Deployment
-- **NEVER DEPLOY WITHOUT SPECIFIC INSTRUCTIONS TO DO SO**   
-- the production deployment uses NGINX to reroute data from dcwebui to this api.  DO NOT DEPLOY TO dcewbui
-- to deploy the system execute this in powershell: cd C:\Users\dmorr\Source\Repos\DCElectricWebAPI
-  .\deploy-cloudrun.ps1 -ProjectId "morrisdev-203721" -Region "us-central1" -ServiceName "dcelectric-webapi"
-- 
-## Local Authentication and AUthorization Strings
+- **NEVER DEPLOY WITHOUT SPECIFIC INSTRUCTIONS TO DO SO.**
+- The DCWebUI frontend proxies `/api/` to this API via nginx. Deploying this API does **not** deploy DCWebUI (separate service/repo).
+- **How it deploys:** Cloud Run's continuous-deploy trigger builds the `Dockerfile` and deploys on every push to the **`main`** branch. GCP project `morrisdev-203721`, region `us-central1`, service `dcelectric-webapi`.
+- The GitHub Actions workflow `.github/workflows/deploy-cloudrun.yml` is a **manual** fallback only (`workflow_dispatch`); it no longer auto-runs.
+- Runtime config: the container runs as `ASPNETCORE_ENVIRONMENT=Production` and binds `PORT=8080`.
+
+## Configuration & Secrets
+
+- **`appsettings.json`** is committed and contains **only non-secret** config (Serilog, QuickBase realm/app IDs, GCS bucket/project, etc.). It must exist or the app fails to start.
+- **`appsettings.Development.json`** (git-ignored) holds the real secrets for **local** dev. `appsettings.Docker.json` and `.env` are also git-ignored. A reference copy of dev secrets lives in `creds/` (git-ignored).
+- **Production secrets** come from **GCP Secret Manager**, injected as environment variables on the Cloud Run service (config keys use `__` as the section separator):
+
+  | Env var | Secret | Config key |
+  |---------|--------|-----------|
+  | `ConnectionStrings__DefaultConnection` | `dcelectric-db-connection` | DB connection |
+  | `quickbase__token` | `dcelectric-qb-token` | QuickBase user token |
+  | `Websupergoo__license` | `dcelectric-abcpdf-license` | ABCpdf license |
+  | `/app/secrets/gcs-key.json` (file mount) | `dcelectric-service-account-key` | GCS credentials |
+
+  These secrets are configured **on the Cloud Run service** and persist across trigger deploys. Never commit secret values to the repo.
 
 
 ## PDF Reports
@@ -65,7 +80,7 @@ Authorization: QB-USER-TOKEN {token}
 Content-Type: application/json
 ```
 
-Tokens are stored in `appsettings.json` under `quickbase:token`, `quickbase:jltoken`, `quickbase:safetoken`.
+`QuickBaseConnector` reads the token and realm from configuration (`quickbase:token` and `quickbase:domain`) — never hardcoded. In production the token comes from the `quickbase__token` env var (Secret Manager `dcelectric-qb-token`); locally it comes from the git-ignored `appsettings.Development.json`.
 
 ### Apps in Use
 
@@ -301,20 +316,9 @@ Add `?format=pdf` to get PDF output instead of JSON.
 
 ### Known Issues / Tech Debt
 
-1. **Hardcoded credentials** - `QuickBaseConnector.cs` has hardcoded `slToken` and `domain` that should use configuration
+1. **Generic exception handling** - Code throws `Exception()` on QuickBase API failures. Consider specific exception types, proper HTTP status codes, and detailed logging.
 
-2. **Generic exception handling** - Code throws `Exception()` on API failures. Consider:
-   - Specific exception types
-   - Proper HTTP status codes
-   - Detailed logging
-
-3. **No pagination handling** - Large queries may hit limits. Check `metadata.totalRecords`.
-
-4. **Deprecated Controllers** - `StartupController.cs` and `FixtureController.cs` are marked `[Obsolete]` as they used the legacy Intuit QuickBase SDK which has been removed. Use `StreetlightsFixtureController` instead.
-
-### Legacy SDK Removal (2026-02-02)
-
-The legacy Intuit QuickBase SDK (XML-based) has been completely removed from the project. All QuickBase operations now use the REST API exclusively via `QuickBaseConnector.Query()`. The SDK project references were removed from `DCElectricWebAPI.csproj`.
+2. **No pagination handling** - Large queries may hit limits. Check `metadata.totalRecords`.
 
 ### Pagination Pattern
 ```csharp
@@ -342,9 +346,9 @@ do
 
 | Service | Purpose | Config Key |
 |---------|---------|------------|
-| Azure Blob Storage | PDF/file storage | `AzureBlobStorageConnectionString` |
-| SQL Server | Report metadata/caching | `ConnectionStrings:DefaultConnection` |
-| Report Server | PDF generation | `ReportServer` |
+| Google Cloud Storage | PDF/report storage | `GoogleCloudStorage:*` (credential file mounted at `/app/secrets/gcs-key.json`) |
+| PostgreSQL (Cloud SQL) | Report metadata/caching | `ConnectionStrings:DefaultConnection` |
+| QuickBase | Source data | `quickbase:token`, `quickbase:domain` |
 
 ---
 
