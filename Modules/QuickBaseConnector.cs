@@ -11,13 +11,17 @@ namespace DCElectricWebAPI.Modules
     public class QuickBaseConnector
     {
         private readonly string _url = "https://api.quickbase.com";
-        private readonly string _token = "***REMOVED***";
-        private readonly string _domain = "dcelectricgroup.quickbase.com";
+        private readonly string _token;
+        private readonly string _domain;
         private readonly IOptions<QuickBaseSettings> _settings;
 
         public QuickBaseConnector(IOptions<QuickBaseSettings> settings)
         {
             _settings = settings;
+            // Token and realm come from the gitignored appsettings "quickbase"
+            // section, never hardcoded in source.
+            _token = settings.Value.token;
+            _domain = settings.Value.domain;
         }
 
         
