@@ -512,6 +512,33 @@ public class StreetlightsInvoiceController : ControllerBase
 
             var userId = GetUserId(Authorization);
 
+            // format=json: return raw billing totals for all requests synchronously (for verification)
+            if (string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
+            {
+                var results = new List<object>();
+                foreach (var req in requests)
+                {
+                    var ticketReq = new TicketBillingRequest
+                    {
+                        CustomerName = req.CustomerName,
+                        StartDate = req.StartDate,
+                        EndDate = req.EndDate,
+                        DivisionId = req.DivisionId,
+                        DivisionName = req.DivisionName
+                    };
+                    var response = await _service.GetTicketBillingDataAsync(ticketReq);
+                    results.Add(new
+                    {
+                        customerName = req.CustomerName,
+                        labor = response.TotalLaborCost,
+                        equipment = response.TotalEquipmentCost,
+                        materials = response.TotalMaterialsCost,
+                        total = response.TotalLaborCost + response.TotalEquipmentCost + response.TotalMaterialsCost
+                    });
+                }
+                return Ok(results);
+            }
+
             // format=pdf: process only the first request synchronously and return the PDF directly
             if (string.Equals(format, "pdf", StringComparison.OrdinalIgnoreCase))
             {

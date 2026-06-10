@@ -153,17 +153,14 @@ public class StreetLightsService
         public const int Equipment = 9;           // Equipment (text lookup - equipment name)
     }
 
-    // Field IDs for Equipment Pricing table
-    // NOTE: Using field IDs 1,2 to match legacy DCEGSLEntry.cs behavior (lines 1690-1691).
-    // The legacy system queries Date Created (1) and Date Modified (2) instead of
-    // Customer (6) and Equipment (7), which never matches any records, resulting in $0 equipment charges.
-    // Client confirmed this legacy behavior is intentional - equipment should not be charged.
+    // Field IDs for Equipment Pricing table (bjrvqd347)
+    // Verified against QuickBase schema — FIELD_MAPPINGS.md §Equipment Pricing
     private static class EquipmentPricingFields
     {
         public const int RecordId = 3;
-        public const int Customer = 1;      // Legacy uses field 1 (Date Created) - intentionally won't match
-        public const int Equipment = 2;     // Legacy uses field 2 (Date Modified) - intentionally won't match
-        public const int EquipmentRate = 9; // Price
+        public const int Customer = 6;      // Customer Name (text-multiple-choice)
+        public const int Equipment = 7;     // Equipment (text-multiple-choice)
+        public const int EquipmentRate = 9; // Price (currency)
     }
 
     // Field IDs for Team Members table
@@ -779,8 +776,7 @@ public class StreetLightsService
             // Get labor
             ticket.LaborItems = await GetLaborForTicketAsync(ticket.TicketId, request.CustomerName, technicians, shouldBillLaborEquipment);
 
-            // Get equipment - legacy never bills equipment, always pass false
-            ticket.EquipmentItems = await GetEquipmentForTicketAsync(ticket.TicketId, request.CustomerName, false);
+            ticket.EquipmentItems = await GetEquipmentForTicketAsync(ticket.TicketId, request.CustomerName, shouldBillLaborEquipment);
         }
 
         // Build materials usage summary
@@ -808,11 +804,11 @@ public class StreetLightsService
             Tickets = tickets,
             TicketCount = tickets.Count,
             TotalLaborHours = tickets.Sum(t => t.LaborItems.Sum(l => l.Hours)),
-            TotalLaborCost = tickets.Sum(t => t.TicketLaborTotal),
-            TotalMaterialsCost = tickets.Sum(t => t.TicketMaterialsTotal),
+            TotalLaborCost = Math.Round(tickets.Sum(t => t.TicketLaborTotal), 2, MidpointRounding.AwayFromZero),
+            TotalMaterialsCost = Math.Round(tickets.Sum(t => t.TicketMaterialsTotal), 2, MidpointRounding.AwayFromZero),
             TotalEquipmentHours = tickets.Sum(t => t.EquipmentItems.Sum(e => e.Hours)),
-            TotalEquipmentCost = tickets.Sum(t => t.TicketEquipmentTotal),
-            GrandTotal = tickets.Sum(t => t.TicketTotal),
+            TotalEquipmentCost = Math.Round(tickets.Sum(t => t.TicketEquipmentTotal), 2, MidpointRounding.AwayFromZero),
+            GrandTotal = Math.Round(tickets.Sum(t => t.TicketTotal), 2, MidpointRounding.AwayFromZero),
             MaterialsUsageSummary = materialsUsage
         };
 

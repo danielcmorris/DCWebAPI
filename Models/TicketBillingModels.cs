@@ -74,10 +74,10 @@ public class TicketData
     public List<MaterialLineItem> MaterialItems { get; set; } = new();
     public List<EquipmentLineItem> EquipmentItems { get; set; } = new();
 
-    // Ticket totals
-    public decimal TicketLaborTotal => LaborItems.Sum(l => l.Hours * l.Rate);
-    public decimal TicketMaterialsTotal => MaterialItems.Sum(m => m.Quantity * m.Price);
-    public decimal TicketEquipmentTotal => EquipmentItems.Sum(e => e.Hours * e.Rate);
+    // Ticket totals — kept as exact decimals; rounding happens at the invoice grand-total level
+    public decimal TicketLaborTotal => LaborItems.Sum(l => l.Cost);
+    public decimal TicketMaterialsTotal => MaterialItems.Sum(m => m.Cost);
+    public decimal TicketEquipmentTotal => EquipmentItems.Sum(e => e.Cost);
     public decimal TicketTotal => TicketLaborTotal + TicketMaterialsTotal + TicketEquipmentTotal;
 }
 

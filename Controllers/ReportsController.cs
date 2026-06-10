@@ -104,7 +104,7 @@ public class ReportsController : ControllerBase
             }
             report.CreatedByID = user.UserId;
             await OverrideReportAsync(report);
-            if (report.GenerationStatus == "Failed")
+            if (report.GenerationStatus == "Failed" || report.GenerationStatus == "Uploaded")
             {
                 await UpdateReportAsync(report.ReportID, "In Progress", user.UserId);
                 List<CustomerDetails> customerDetails = new List<CustomerDetails>();
