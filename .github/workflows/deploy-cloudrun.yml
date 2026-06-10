@@ -1,8 +1,11 @@
 name: Build and Deploy to Cloud Run
 
+# Deployment is handled by Cloud Run's continuous-deploy trigger on push to main.
+# This workflow no longer runs automatically (it raced the trigger); it is kept
+# as a manual fallback only. Secrets are configured on the dcelectric-webapi
+# Cloud Run service and persist across deploys.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 env:
   PROJECT_ID: morrisdev-203721
