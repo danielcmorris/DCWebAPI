@@ -153,12 +153,16 @@ public class StreetLightsService
         public const int Equipment = 9;           // Equipment (text lookup - equipment name)
     }
 
-    // Field IDs for Equipment Pricing table (per FIELD_MAPPINGS.md)
+    // Field IDs for Equipment Pricing table
+    // NOTE: Using field IDs 1,2 to match legacy DCEGSLEntry.cs behavior (lines 1690-1691).
+    // The legacy system queries Date Created (1) and Date Modified (2) instead of
+    // Customer (6) and Equipment (7), which never matches any records, resulting in $0 equipment charges.
+    // Client confirmed this legacy behavior is intentional - equipment should not be charged.
     private static class EquipmentPricingFields
     {
         public const int RecordId = 3;
-        public const int Customer = 6;      // Customer Name
-        public const int Equipment = 7;     // Equipment
+        public const int Customer = 1;      // Legacy uses field 1 (Date Created) - intentionally won't match
+        public const int Equipment = 2;     // Legacy uses field 2 (Date Modified) - intentionally won't match
         public const int EquipmentRate = 9; // Price
     }
 
@@ -711,8 +715,8 @@ public class StreetLightsService
         var pricingLevel = await GetCustomerPricingLevelAsync(request.CustomerName);
         if (string.IsNullOrEmpty(pricingLevel))
         {
-            pricingLevel = "A"; // Default pricing level
-            _logger.LogWarning("No pricing level found for customer {Customer}, defaulting to 'A'", request.CustomerName);
+            pricingLevel = "Z"; // Default pricing level (matches legacy behavior)
+            _logger.LogWarning("No pricing level found for customer {Customer}, defaulting to 'Z'", request.CustomerName);
         }
 
         // Get technicians list for name lookups
@@ -741,12 +745,30 @@ public class StreetLightsService
         // For each ticket, get labor, materials, and equipment
         foreach (var ticket in tickets)
         {
-            // Skip billing if ticket is marked as Job or Not Billable
-            bool skipBilling = ticket.NotBillable || ticket.ServiceType == "Job";
+            // Determine if billing should be skipped
+            // BillableOverride cancels both Job and NotBillable flags (legacy behavior)
+            bool skipBilling;
+            if (ticket.BillableOverride)
+            {
+                // BillableOverride forces billing regardless of Job/NotBillable status
+                skipBilling = false;
+            }
+            else
+            {
+                skipBilling = ticket.NotBillable || ticket.ServiceType == "Job";
+            }
 
             // Get materials first (needed to determine if labor/equipment should be billed)
             // Pass billableOverride to handle special pricing when sell price is 0
-            ticket.MaterialItems = await GetMaterialsForTicketAsync(ticket.TicketId, pricingLevel, ticket.BillableOverride);
+            // Skip materials for Job tickets that are billed separately (matches legacy behavior)
+            if (skipBilling)
+            {
+                ticket.MaterialItems = new List<MaterialLineItem>();
+            }
+            else
+            {
+                ticket.MaterialItems = await GetMaterialsForTicketAsync(ticket.TicketId, pricingLevel, ticket.BillableOverride);
+            }
 
             // Determine if we should bill labor and equipment
             // BillableOverride forces billing regardless of materials
@@ -757,8 +779,8 @@ public class StreetLightsService
             // Get labor
             ticket.LaborItems = await GetLaborForTicketAsync(ticket.TicketId, request.CustomerName, technicians, shouldBillLaborEquipment);
 
-            // Get equipment
-            ticket.EquipmentItems = await GetEquipmentForTicketAsync(ticket.TicketId, request.CustomerName, shouldBillLaborEquipment);
+            // Get equipment - legacy never bills equipment, always pass false
+            ticket.EquipmentItems = await GetEquipmentForTicketAsync(ticket.TicketId, request.CustomerName, false);
         }
 
         // Build materials usage summary
@@ -884,8 +906,8 @@ public class StreetLightsService
                     StartTime = ParseQuickBaseTime(GetStringValue(obj, TicketFields.StartTime)),
                     CompletionDate = ParseQuickBaseDate(GetStringValue(obj, TicketFields.CompletionDate)),
                     CompletionTime = ParseQuickBaseTime(GetStringValue(obj, TicketFields.CompletionTime)),
-                    NotBillable = GetStringValue(obj, TicketFields.NotBillable) == "1",
-                    BillableOverride = GetStringValue(obj, TicketFields.BillableOverride) == "1"
+                    NotBillable = GetStringValue(obj, TicketFields.NotBillable) == "1" || GetStringValue(obj, TicketFields.NotBillable) == "True",
+                    BillableOverride = GetStringValue(obj, TicketFields.BillableOverride) == "1" || GetStringValue(obj, TicketFields.BillableOverride) == "True"
                 };
 
                 tickets.Add(ticket);
@@ -974,8 +996,8 @@ public class StreetLightsService
                     StartTime = ParseQuickBaseTime(GetStringValue(obj, TicketFields.StartTime)),
                     CompletionDate = ParseQuickBaseDate(GetStringValue(obj, TicketFields.CompletionDate)),
                     CompletionTime = ParseQuickBaseTime(GetStringValue(obj, TicketFields.CompletionTime)),
-                    NotBillable = GetStringValue(obj, TicketFields.NotBillable) == "1",
-                    BillableOverride = GetStringValue(obj, TicketFields.BillableOverride) == "1"
+                    NotBillable = GetStringValue(obj, TicketFields.NotBillable) == "1" || GetStringValue(obj, TicketFields.NotBillable) == "True",
+                    BillableOverride = GetStringValue(obj, TicketFields.BillableOverride) == "1" || GetStringValue(obj, TicketFields.BillableOverride) == "True"
                 };
 
                 tickets.Add(ticket);
@@ -1103,7 +1125,17 @@ public class StreetLightsService
                 // Get price
                 if (isNonInventory)
                 {
-                    material.Price = GetDecimalValue(obj, MaterialFields.NonInventorySalePrice);
+                    var nonInventorySalePrice = GetDecimalValue(obj, MaterialFields.NonInventorySalePrice);
+
+                    // Legacy behavior: Non-inventory materials MUST have a sale price > $0
+                    if (nonInventorySalePrice <= 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"Non-inventory material '{material.Description}' on ticket {ticketId} has no sale price. " +
+                            "Please update the Non-Inventory Material SALE Price in QuickBase before generating this report.");
+                    }
+
+                    material.Price = nonInventorySalePrice;
                 }
                 else
                 {
@@ -1237,14 +1269,16 @@ public class StreetLightsService
         {
             JObject obj = result.data[0];
             var sellPrice = GetDecimalValue(obj, MaterialPricingFields.SellPrice);
-            var isLumpSum = GetStringValue(obj, MaterialPricingFields.LumpSum) == "1";
+            var lumpSumValue = GetStringValue(obj, MaterialPricingFields.LumpSum);
+            var isLumpSum = lumpSumValue == "1" || lumpSumValue == "True";
 
-            // If sell price is 0, fall back to list price (legacy app behavior)
+            // Only use list price when sell price is 0 AND BillableOverride is true
+            // If BillableOverride is false and sell price is 0, customer has negotiated $0 pricing
             decimal finalPrice = sellPrice;
-            if (sellPrice == 0 && listPrice > 0)
+            if (sellPrice == 0 && listPrice > 0 && billableOverride)
             {
                 finalPrice = listPrice;
-                _logger.LogInformation("GetMaterialPriceAsync: SellPrice is 0, using ListPrice {ListPrice} for ItemId={ItemId}",
+                _logger.LogInformation("GetMaterialPriceAsync: BillableOverride active, using ListPrice {ListPrice} instead of $0 SellPrice for ItemId={ItemId}",
                     listPrice, itemId);
             }
 
@@ -1350,17 +1384,27 @@ public class StreetLightsService
 
     /// <summary>
     /// Determine if labor and equipment should be billed based on materials
+    /// Legacy behavior from checkForPrice() in DCEGSLEntry.cs:1777-1807:
+    /// Process materials sequentially, return immediately on first LumpSum=1 OR Price>0
     /// </summary>
     private bool ShouldBillLaborAndEquipment(List<MaterialLineItem> materials)
     {
-        // If any material is marked as lump sum, don't bill labor/equipment
-        // (lump sum means labor/equipment is included in the material price)
-        if (materials.Any(m => m.IsLumpSum))
-            return false;
+        // No materials → charge labor/equipment (legacy behavior)
+        if (!materials.Any())
+            return true;
 
-        // Otherwise, always bill labor/equipment
-        // The legacy app bills unless there's a lump sum material
-        return true;
+        // Process materials in order like legacy checkForPrice()
+        // Return on first match: LumpSum=true → false, Price>0 → true
+        foreach (var material in materials)
+        {
+            if (material.IsLumpSum)
+                return false;  // LumpSum material found first - don't bill labor/equipment
+            if (material.Price > 0)
+                return true;   // Priced material found first - bill labor/equipment
+        }
+
+        // All materials have $0 price and no LumpSum - don't bill labor/equipment
+        return false;
     }
 
     /// <summary>

@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Build results
+bin/
+obj/
+out/
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Logs
+*.log
+logs/
+
+# Docker
+Dockerfile*
+docker-compose*
+
+# Documentation
+*.md
+.claude/
+
+# Secrets (don't include in image - use environment variables)
+appsettings.Development.json
+appsettings.Local.json
+creds/
+
+# Test files
+*.Tests/
+TestResults/
+
+# NOTE: appsettings.json and appsettings.Production.json are NOT ignored
+# They are required for the application to start
