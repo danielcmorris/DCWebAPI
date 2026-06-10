@@ -4,10 +4,13 @@
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
 
-# HIDE settings (except Production which has no secrets)
-appsettings.json
+# HIDE env-specific settings that carry secrets (Dev/Docker/Local).
+# Base appsettings.json and Production are tracked: they hold only non-secret
+# config; real secrets are injected from Secret Manager in prod and from the
+# gitignored appsettings.Development.json locally.
 appsettings.*.json
 !appsettings.Production.json
+appsettings.Local.json
 
 # Claude context files (large OpenAPI specs can be re-downloaded)
 .claude/*.json

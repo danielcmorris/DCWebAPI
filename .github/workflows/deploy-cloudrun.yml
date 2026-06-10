@@ -35,4 +35,5 @@ jobs:
             --cpu 2 \
             --timeout 300 \
             --cpu-boost \
+            --set-secrets="ConnectionStrings__DefaultConnection=dcelectric-db-connection:latest,quickbase__token=dcelectric-qb-token:latest,Websupergoo__license=dcelectric-abcpdf-license:latest,AzureBlobStorageConnectionString=dcelectric-azure-blob:latest,/app/secrets/gcs-key.json=dcelectric-service-account-key:latest" \
             --quiet
