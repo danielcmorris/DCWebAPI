@@ -95,8 +95,11 @@ public class TrafficTicketData
         Math.Round(m.Quantity * m.Price, 2, MidpointRounding.AwayFromZero));
     public decimal TicketEquipmentTotal => EquipmentItems.Sum(e =>
         Math.Round(e.Hours * e.Rate, 2, MidpointRounding.AwayFromZero));
+    // FIX #13: Routine tickets bill the flat maintenance fee PLUS any materials and equipment
+    // used (labor is folded into the flat fee). Non-Routine tickets bill labor + materials +
+    // equipment. Matches legacy DCDBEntry.cs fillTotals (InvoiceCosts = labor + equip + maint + matl).
     public decimal TicketTotal => IsRoutineMaintenance
-        ? MaintenanceFee
+        ? MaintenanceFee + TicketMaterialsTotal + TicketEquipmentTotal
         : TicketLaborTotal + TicketMaterialsTotal + TicketEquipmentTotal;
 }
 

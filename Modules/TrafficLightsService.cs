@@ -317,6 +317,17 @@ public class TrafficLightsService
 
                 _logger.LogInformation("Ticket {TicketId} is Routine maintenance, fee: {Fee:C}",
                     ticket.TicketId, ticket.MaintenanceFee);
+
+                // FIX #13: Legacy bills materials and equipment on Routine tickets IN ADDITION
+                // to the flat maintenance fee (DCDBEntry.cs fillMaint -> fillMatl -> fillEquip).
+                // The flat fee stands in for itemized labor only; materials and equipment used
+                // on a routine visit are still billed. Previously these were dropped, under-billing
+                // any Routine ticket that had material or equipment line items.
+                ticket.MaterialItems = await GetMaterialsForTicketAsync(ticket.TicketId, request.CustomerName);
+                ticket.EquipmentItems = await GetEquipmentForTicketAsync(
+                    ticket.TicketId,
+                    request.CustomerName,
+                    true);
             }
             else
             {
