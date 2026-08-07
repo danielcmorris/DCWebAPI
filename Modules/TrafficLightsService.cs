@@ -1202,7 +1202,7 @@ public class TrafficLightsService
                 body { font-family: 'Liberation Sans', Arial, sans-serif; font-size: 10pt; margin: 0; padding: 0; }
                 .location-type-header { font-size: 14pt; font-weight: bold; text-decoration: underline; margin-bottom: 15px; }
                 .location-header { font-weight: bold; margin-bottom: 5px; border-bottom: 2px solid #000; padding-bottom: 3px; }
-                .ticket-section { margin-bottom: 20px; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
+                .ticket-section { margin-bottom: 20px; border-bottom: 1px solid #ccc; padding-bottom: 10px; break-inside: avoid; page-break-inside: avoid; }
                 .info-row { margin-bottom: 3px; }
                 .info-label { font-weight: bold; display: inline-block; width: 120px; }
                 .section-title { font-weight: bold; text-decoration: underline; margin-top: 10px; margin-bottom: 5px; }
@@ -1211,11 +1211,12 @@ public class TrafficLightsService
                 th.right { text-align: right; }
                 td { padding: 4px; }
                 td.right { text-align: right; }
+                tr { break-inside: avoid; page-break-inside: avoid; }
                 .total-row { border-top: 1px solid #000; font-weight: bold; }
                 .subtotal-row { margin-bottom: 5px; }
                 .subtotal-label { display: inline-block; width: 200px; }
                 .subtotal-value { font-weight: bold; }
-                .location-totals { margin-top: 20px; padding-top: 10px; border-top: 2px solid #000; }
+                .location-totals { margin-top: 20px; padding-top: 10px; border-top: 2px solid #000; break-inside: avoid; page-break-inside: avoid; }
                 .maintenance-fee { margin-top: 10px; font-size: 10pt; }
                 .ticket-total { margin-top: 10px; text-align: right; font-size: 10pt; }
             </style>
