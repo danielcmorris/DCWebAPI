@@ -803,7 +803,8 @@ public class StreetLightsService
             BillingPeriod = GetBillingPeriod(request.StartDate),
             Tickets = tickets,
             TicketCount = tickets.Count,
-            TotalLaborHours = tickets.Sum(t => t.LaborItems.Sum(l => l.Hours)),
+        
+            TotalLaborHours = tickets.Where(t => t.JobNumber?.StartsWith("M") == true).Sum(t => t.LaborItems.Sum(l => l.Hours)),
             TotalLaborCost = Math.Round(tickets.Sum(t => t.TicketLaborTotal), 2, MidpointRounding.AwayFromZero),
             TotalMaterialsCost = Math.Round(tickets.Sum(t => t.TicketMaterialsTotal), 2, MidpointRounding.AwayFromZero),
             TotalEquipmentHours = tickets.Sum(t => t.EquipmentItems.Sum(e => e.Hours)),
@@ -811,6 +812,8 @@ public class StreetLightsService
             GrandTotal = Math.Round(tickets.Sum(t => t.TicketTotal), 2, MidpointRounding.AwayFromZero),
             MaterialsUsageSummary = materialsUsage
         };
+
+//used to be:    TotalLaborHours = tickets.Sum(t => t.LaborItems.Sum(l => l.Hours)),
 
         _logger.LogInformation("Ticket billing data complete: {Count} tickets, Total: {Total:C}",
             tickets.Count, response.GrandTotal);
@@ -1567,7 +1570,7 @@ public class StreetLightsService
         sb.Append($"<div class='analysis'><span class='info-label' style='text-decoration:underline;'>Analysis:</span> {System.Net.WebUtility.HtmlEncode(ticket.Analysis)}</div>");
 
         // Labor table
-        if (ticket.LaborItems.Count > 0)
+        if (ticket.LaborItems.Count > 0 &&  ticket.JobNumber?.StartsWith("M") == true)
         {
             sb.Append("<table><tr><th style='text-decoration:underline;'>Technician</th><th style='text-decoration:underline;'>Type of Hours</th><th style='text-decoration:underline;'>Type of Labor</th><th class='right' style='text-decoration:underline;'>Hours</th><th class='right' style='text-decoration:underline;'>Rate</th><th class='right' style='text-decoration:underline;'>Cost</th></tr>");
             foreach (var labor in ticket.LaborItems)
@@ -1585,7 +1588,7 @@ public class StreetLightsService
         }
 
         // Materials table
-        if (ticket.MaterialItems.Count > 0)
+        if (ticket.MaterialItems.Count > 0  &&  ticket.JobNumber?.StartsWith("M") == true)
         {
             sb.Append("<table><tr><th style='text-decoration:underline;'>Materials</th><th style='text-decoration:underline;'>Unit of Measure</th><th class='right' style='text-decoration:underline;'>Quantity</th><th class='right' style='text-decoration:underline;'>Price</th><th class='right' style='text-decoration:underline;'>Cost</th></tr>");
             foreach (var material in ticket.MaterialItems)
@@ -1597,7 +1600,7 @@ public class StreetLightsService
         }
 
         // Equipment table
-        if (ticket.EquipmentItems.Count > 0)
+        if (ticket.EquipmentItems.Count > 0  &&  ticket.JobNumber?.StartsWith("M") == true)
         {
             sb.Append("<table><tr><th style='text-decoration:underline;'>Equipment</th><th class='right' style='text-decoration:underline;'>Hours</th><th class='right' style='text-decoration:underline;'>Rate</th><th class='right' style='text-decoration:underline;'>Cost</th></tr>");
             foreach (var equipment in ticket.EquipmentItems)
@@ -1609,7 +1612,10 @@ public class StreetLightsService
         }
 
         // Ticket Total
-        sb.Append($"<div style='margin-top: 15px; text-align: right; font-size: 11pt;'><strong>Total: {ticket.TicketTotal:C}</strong></div>");
+        if(ticket.JobNumber?.StartsWith("M") == true || ticket.TicketTotal>0){
+            sb.Append($"<div style='margin-top: 15px; text-align: right; font-size: 11pt;'><strong>Total: {ticket.TicketTotal:C}</strong></div>");
+        }
+        
 
         sb.Append("</body></html>");
         return sb.ToString();
