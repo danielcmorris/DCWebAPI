@@ -1272,11 +1272,12 @@ public class TrafficLightsService
 
         // Info rows - two columns
         sb.Append("<table style='border:none;'><tr><td style='width:50%;vertical-align:top;border:none;padding:0;'>");
-        sb.Append($"<div class='info-row'><span class='info-label'>Date:</span> {ticket.StartDate?.ToShortDateString()} {System.Net.WebUtility.HtmlEncode(ticket.StartTime)} </div>");
+        sb.Append($"<div class='info-row'><span class='info-label'>Date:</span> {ticket.DateTimeOpened?.ToString("M/d/yyyy h:mm:sstt") ?? ""}</div>");
         sb.Append($"<div class='info-row'><span class='info-label'>Service Type:</span> {System.Net.WebUtility.HtmlEncode(ticket.ServiceType)}</div>");
         sb.Append($"<div class='info-row'><span class='info-label'>Caller:</span> {System.Net.WebUtility.HtmlEncode(ticket.CallerName)}</div>");
         sb.Append($"<div class='info-row'><span class='info-label'>Technician:</span> {System.Net.WebUtility.HtmlEncode(ticket.Technician)}</div>");
         sb.Append("</td><td style='width:50%;vertical-align:top;border:none;padding:0;'>");
+        sb.Append($"<div class='info-row'><span class='info-label'>Start Date/Time:</span> {ticket.StartDate?.ToShortDateString() ?? ""} {System.Net.WebUtility.HtmlEncode(ticket.StartTime)}</div>");
         sb.Append($"<div class='info-row'><span class='info-label'>End Date/Time:</span> {ticket.CompletionDate?.ToShortDateString() ?? ""} {System.Net.WebUtility.HtmlEncode(ticket.CompletionTime)}</div>");
         sb.Append($"<div class='info-row'><span class='info-label'>Problem:</span> {System.Net.WebUtility.HtmlEncode(ticket.ProblemType)}</div>");
         sb.Append("</td></tr></table>");
