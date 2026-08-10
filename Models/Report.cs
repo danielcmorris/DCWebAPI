@@ -21,4 +21,5 @@ public class Report
     public int TicketCount { get; set; }  // Number of items in the report (fixtures or tickets)
     public DateTime CreatedDate { get; set; }  // Automatically generated
     public DateTime? UpdatedDate { get; set; }  // Automatically generated
+    public DateTime? ServerNow { get; set; }  // DB clock at query time; same clock/zone as CreatedDate so clients can compute elapsed time without trusting the browser clock
 }

@@ -156,7 +156,7 @@ public class ReportsController : ControllerBase
         try
         {
             string sql = $@"
-                            SELECT ReportId, CustomerName, StartDate, EndDate, CreatedByID, UpdatedByID, GenerationStatus, ReportName, COALESCE(GcsURL, BlobURL) AS BlobURL,GcsURL, ReportType, StrButton,Message, CreatedDate, UpdatedDate
+                            SELECT ReportId, CustomerName, StartDate, EndDate, CreatedByID, UpdatedByID, GenerationStatus, ReportName, COALESCE(GcsURL, BlobURL) AS BlobURL,GcsURL, ReportType, StrButton,Message, CreatedDate, UpdatedDate, LOCALTIMESTAMP AS ServerNow
                             FROM Report
                             WHERE IsDeleted = 0 and LOWER(ReportType) = LOWER(@ReportType)
                             ORDER BY CreatedDate DESC";
