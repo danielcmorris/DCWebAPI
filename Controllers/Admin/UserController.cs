@@ -66,6 +66,11 @@ namespace DCElectricWebAPI.Controllers.Admin
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateUser([FromBody] User userParams, int id, [FromQuery] string sid)
         {
+            var executor = dl.Query<User>(
+                "SELECT * FROM fn_security_user_by_session_id(@p_session_id)",
+                new { p_session_id = sid ?? "" }).FirstOrDefault();
+            if (executor == null) return Unauthorized();
+
             try
             {
                 // Update user with optional password change
@@ -74,15 +79,23 @@ namespace DCElectricWebAPI.Controllers.Admin
 
                 if (!string.IsNullOrEmpty(userParams.Password))
                 {
+                    if (executor.UserLevel != "Admin") return Unauthorized();
+
+                    // Passwords are stored as digest(password || salt, 'sha512'),
+                    // which is what usp_login verifies against. A new salt is
+                    // generated on every password change.
                     sql = @"UPDATE users SET
                         firstname = @FirstName,
                         lastname = @LastName,
-                        password = @Password,
                         email = @Email,
                         phone = @Phone,
                         userlevel = @UserLevel,
                         permissions = @Permissions,
-                        status = @Status
+                        status = @Status,
+                        salt = s.newsalt,
+                        passwordhash = digest(@Password || s.newsalt::text, 'sha512'),
+                        updateddate = NOW()
+                        FROM (SELECT gen_random_uuid() AS newsalt) s
                         WHERE userid = @UserId";
                     parameters = new
                     {
