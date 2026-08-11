@@ -196,3 +196,26 @@ public class TrafficTechnicianData
     public string Name { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// Read-only row for the open routine maintenance ticket list
+/// (mirrors the QuickBase "All Open Routine Tickets" report)
+/// </summary>
+public class TrafficOpenRoutineTicket
+{
+    public string RecordId { get; set; } = string.Empty;  // QuickBase record id, used for deep links (rid=)
+    public string TicketId { get; set; } = string.Empty;
+    public string Location { get; set; } = string.Empty;
+    public string CustomerName { get; set; } = string.Empty;
+    public string JobNumber { get; set; } = string.Empty;
+    public DateTime? DateTimeOpened { get; set; }
+    public string ServiceType { get; set; } = string.Empty;
+    public string LocationType { get; set; } = string.Empty;
+    public string ProblemType { get; set; } = string.Empty;
+    public string Details { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public DateTime? DueDate { get; set; }
+    public string DueTime { get; set; } = string.Empty;
+    public string AssignedTeamMember { get; set; } = string.Empty;
+    public DateTime? CompletionDate { get; set; }
+}

@@ -42,11 +42,15 @@ public class TrafficLightsService
         public const int ServiceType = 7;             // Service Type
         public const int ProblemType = 8;             // Problem Type
         public const int Details = 10;                // Details (text-multi-line)
+        public const int Status = 12;                 // Status (e.g., O-Pending)
+        public const int DueDate = 13;                // Due Date
         public const int Analysis = 16;               // Analysis (text-multi-line)
         public const int CustomerName = 18;           // Customer Name
         public const int CallerType = 21;             // Caller Type
+        public const int AssignedTeamMember = 22;     // Assigned Team Member (user)
         public const int DateTimeOpened = 25;         // Date / Time Ticket Opened
         public const int TicketId = 27;               // Ticket ID (e.g., TS-000001)
+        public const int DueTime = 42;                // Due Time
         public const int StartDate = 43;              // Start Date
         public const int StartTime = 44;              // Start Time
         public const int CompletionDate = 45;         // Completion Date
@@ -58,6 +62,7 @@ public class TrafficLightsService
         public const int JobNumber = 119;             // Job #
         public const int ServiceCategory = 162;       // Service Category (Routine/Response/L&M)
         public const int NotBillable = 163;           // Not Billable (checkbox)
+        public const int StatusCategory = 164;        // Status Category (Open/Closed)
         public const int LMBilledSeparately = 173;    // L&M Billed Separately (checkbox - from customer)
         public const int AgencyId = 224;              // Location - Agency ID#
         public const int DoNotReport = 226;           // Do Not Report (checkbox)
@@ -619,6 +624,78 @@ public class TrafficLightsService
         }
 
         _logger.LogInformation("Found {Count} Traffic Light tickets across all customers", tickets.Count);
+
+        return tickets;
+    }
+
+    /// <summary>
+    /// Read-only list of all open routine maintenance tickets.
+    /// Mirrors the QuickBase "All Open Routine Tickets" report:
+    /// Status &lt;&gt; 'C-Closed-Resolved' AND Service Category = 'Routine'.
+    /// </summary>
+    public async Task<List<TrafficOpenRoutineTicket>> GetOpenRoutineTicketsAsync()
+    {
+        var qb = new QuickBaseConnector(_settings);
+        var tickets = new List<TrafficOpenRoutineTicket>();
+
+        var query = new QBQuery
+        {
+            from = TicketsTableId,
+            select = new List<int>
+            {
+                TicketFields.RecordId,
+                TicketFields.TicketId,
+                TicketFields.Location,
+                TicketFields.CustomerName,
+                TicketFields.JobNumber,
+                TicketFields.DateTimeOpened,
+                TicketFields.ServiceType,
+                TicketFields.LocationType,
+                TicketFields.ProblemType,
+                TicketFields.Details,
+                TicketFields.Status,
+                TicketFields.DueDate,
+                TicketFields.DueTime,
+                TicketFields.AssignedTeamMember,
+                TicketFields.CompletionDate
+            },
+            where = $"{{{TicketFields.Status}.XEX.'C-Closed-Resolved'}}AND{{{TicketFields.ServiceCategory}.EX.'Routine'}}",
+            sortBy = new List<QBFieldSet>
+            {
+                new QBFieldSet { fieldId = TicketFields.TicketId, order = "ASC" }
+            },
+            options = new QBQueryOptions { top = 10000 }
+        };
+
+        var result = await qb.Query(query);
+
+        if (result?.data != null)
+        {
+            foreach (var record in result.data)
+            {
+                JObject obj = record;
+                tickets.Add(new TrafficOpenRoutineTicket
+                {
+                    RecordId = GetStringValue(obj, TicketFields.RecordId),
+                    TicketId = GetStringValue(obj, TicketFields.TicketId),
+                    Location = GetStringValue(obj, TicketFields.Location),
+                    CustomerName = GetStringValue(obj, TicketFields.CustomerName),
+                    JobNumber = GetStringValue(obj, TicketFields.JobNumber),
+                    DateTimeOpened = ParseQuickBaseDate(GetStringValue(obj, TicketFields.DateTimeOpened)),
+                    ServiceType = GetStringValue(obj, TicketFields.ServiceType),
+                    LocationType = GetStringValue(obj, TicketFields.LocationType),
+                    ProblemType = GetStringValue(obj, TicketFields.ProblemType),
+                    Details = GetStringValue(obj, TicketFields.Details),
+                    Status = GetStringValue(obj, TicketFields.Status),
+                    DueDate = ParseQuickBaseDate(GetStringValue(obj, TicketFields.DueDate)),
+                    DueTime = ParseQuickBaseTime(GetStringValue(obj, TicketFields.DueTime)),
+                    AssignedTeamMember = GetUserNameValue(obj, TicketFields.AssignedTeamMember),
+                    CompletionDate = ParseQuickBaseDate(GetStringValue(obj, TicketFields.CompletionDate))
+                });
+            }
+        }
+
+        _logger.LogInformation("Found {Count} open routine maintenance tickets", tickets.Count);
 
         return tickets;
     }
