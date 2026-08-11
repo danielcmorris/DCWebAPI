@@ -141,6 +141,24 @@ public class ReportsController : ControllerBase
         _logger.LogInformation("Retryiing all reports for user: {userID}", user.UserId);
         try
         {
+            // Sweep: a report left In Progress past the timeout will never finish
+            // (its background task died or the instance was recycled) — mark it Failed
+            // so the UI stops showing it as running forever.
+            int timeoutMinutes = _configuration.GetValue<int?>("ReportTimeoutMinutes") ?? 15;
+            string timeoutSql = @"
+                            UPDATE Report
+                            SET GenerationStatus = 'Failed',
+                                Message = 'Report generation timed out. Please try again.',
+                                UpdatedDate = NOW()
+                            WHERE GenerationStatus = 'In Progress'
+                              AND IsDeleted = 0
+                              AND COALESCE(UpdatedDate, CreatedDate) < NOW() - make_interval(mins => @TimeoutMinutes)";
+            int timedOut = await _dl.ExecuteAsync(timeoutSql, new { TimeoutMinutes = timeoutMinutes });
+            if (timedOut > 0)
+            {
+                _logger.LogWarning("Marked {Count} report(s) stuck In Progress for over {Minutes} minutes as Failed", timedOut, timeoutMinutes);
+            }
+
             string sql = $@"
                             SELECT ReportId, CustomerName, StartDate, EndDate, CreatedByID, UpdatedByID, GenerationStatus, ReportName, COALESCE(GcsURL, BlobURL) AS BlobURL,GcsURL, ReportType, StrButton,Message, CreatedDate, UpdatedDate, LOCALTIMESTAMP AS ServerNow
                             FROM Report
