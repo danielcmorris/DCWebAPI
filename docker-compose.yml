@@ -16,10 +16,6 @@ services:
       - quickbase__jltoken=${QB_JLTOKEN}
       - quickbase__safetoken=${QB_SAFETOKEN}
       - quickbase__traffictoken=${QB_TRAFFICTOKEN}
-      # Azure Blob Storage
-      - AzureBlobStorageConnectionString=${AZURE_BLOB_CONNECTION}
-      - AzureBlobStorageContainerName=dcelectric
-      - AzureBlobStorageFolderName=traffic
       # ABCpdf License
       - Websupergoo__license=${ABCPDF_LICENSE}
       # Database connection

@@ -10,7 +10,6 @@
   <ItemGroup>
     <PackageReference Include="ABCpdf" Version="13.3.1" />
     <PackageReference Include="ABCpdf.ABCChrome123.Linux" Version="13.3.1" />
-    <PackageReference Include="Azure.Storage.Blobs" Version="12.23.0" />
     <PackageReference Include="Dapper" Version="2.1.66" />
     <PackageReference Include="Google.Apis.Storage.v1" Version="1.68.0.3627" />
     <PackageReference Include="Google.Cloud.Storage.V1" Version="4.10.0" />

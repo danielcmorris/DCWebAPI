@@ -10,7 +10,7 @@ public class TrafficLightsInvoiceController : ControllerBase
 {
     private readonly TrafficLightsService _service;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly DualStorageService _dualStorageService;
+    private readonly GoogleCloudStorageService _gcsService;
     private readonly ILogger<TrafficLightsInvoiceController> _logger;
     private readonly DataLayerBase _dl;
 
@@ -20,14 +20,14 @@ public class TrafficLightsInvoiceController : ControllerBase
     public TrafficLightsInvoiceController(
         TrafficLightsService service,
         IServiceScopeFactory scopeFactory,
-        DualStorageService dualStorageService,
+        GoogleCloudStorageService gcsService,
         DataLayerBase dl,
         ILogger<TrafficLightsInvoiceController> logger)
     {
         _dl = dl;
         _service = service;
         _scopeFactory = scopeFactory;
-        _dualStorageService = dualStorageService;
+        _gcsService = gcsService;
         _logger = logger;
     }
 
@@ -196,20 +196,19 @@ public class TrafficLightsInvoiceController : ControllerBase
                 string strEnd = $"{task.Request.EndDate.Year}{task.Request.EndDate.Month:00}{task.Request.EndDate.Day:00}";
                 string fileName = $"{task.Request.CustomerName}_{strStart}_{strEnd}.pdf";
 
-                // Upload to Azure and GCS (dual-write)
+                // Upload to Google Cloud Storage
                 _logger.LogInformation("Uploading Traffic Light ticket PDF for {Customer}, ReportID: {ReportId}, FileName: {FileName}",
                     task.Request.CustomerName, task.ReportId, fileName);
-                var uploadResult = await _dualStorageService.UploadAsync(
-                    pdfBytes, fileName, "trafficlights",
-                    task.Request.CustomerName, "trafficlights", task.Request.StartDate);
-                _logger.LogInformation("Uploaded Traffic Light ticket PDF for {Customer}, ReportID: {ReportId}, AzureUrl: {AzureUrl}, GcsUrl: {GcsUrl}",
-                    task.Request.CustomerName, task.ReportId, uploadResult.AzureUrl, uploadResult.GcsUrl ?? "N/A");
+                var gcsPath = InvoicePathBuilder.BuildInvoicePath(task.Request.CustomerName, "trafficlights", task.Request.StartDate, fileName);
+                var gcsUrl = await _gcsService.UploadFileAsync(pdfBytes, gcsPath);
+                _logger.LogInformation("Uploaded Traffic Light ticket PDF for {Customer}, ReportID: {ReportId}, GcsUrl: {GcsUrl}",
+                    task.Request.CustomerName, task.ReportId, gcsUrl);
 
                 // Update report status to completed/uploaded with ticket count
                 _logger.LogInformation("Updating report status to Uploaded for {Customer}, ReportID: {ReportId}",
                     task.Request.CustomerName, task.ReportId);
-                await UpdateReportAsync(task.ReportId, "Uploaded", userId, uploadResult.AzureUrl,
-                    ticketCount: response.TicketCount, gcsUrl: uploadResult.GcsUrl);
+                await UpdateReportAsync(task.ReportId, "Uploaded", userId,
+                    ticketCount: response.TicketCount, gcsUrl: gcsUrl);
 
                 _logger.LogInformation("Completed Traffic Light ticket report for {Customer}, ReportID: {ReportId}, TicketCount: {Count}",
                     task.Request.CustomerName, task.ReportId, response.TicketCount);
@@ -238,7 +237,7 @@ public class TrafficLightsInvoiceController : ControllerBase
     /// </summary>
     /// <remarks>
     /// Accepts an array of report requests, creates report records in the database,
-    /// starts background tasks to generate PDFs and upload to Azure, then returns
+    /// starts background tasks to generate PDFs and upload to Google Cloud Storage, then returns
     /// the report IDs immediately for status polling.
     ///
     /// Use format=pdf for synchronous PDF generation (first request only).
@@ -296,14 +295,13 @@ public class TrafficLightsInvoiceController : ControllerBase
 
                     var pdfBytes = _service.GenerateTicketBillingPdf(response);
 
-                    var uploadResult = await _dualStorageService.UploadAsync(
-                        pdfBytes, fileName, "trafficlights",
-                        request.CustomerName, "trafficlights", request.StartDate);
-                    await UpdateReportAsync(createdReport.ReportID, "Uploaded", userId, uploadResult.AzureUrl,
-                        ticketCount: response.TicketCount, gcsUrl: uploadResult.GcsUrl);
+                    var gcsPath = InvoicePathBuilder.BuildInvoicePath(request.CustomerName, "trafficlights", request.StartDate, fileName);
+                    var gcsUrl = await _gcsService.UploadFileAsync(pdfBytes, gcsPath);
+                    await UpdateReportAsync(createdReport.ReportID, "Uploaded", userId,
+                        ticketCount: response.TicketCount, gcsUrl: gcsUrl);
 
                     _logger.LogInformation("Completed synchronous Traffic Light ticket PDF for {Customer}, Size: {Size} bytes, GcsUrl: {GcsUrl}",
-                        request.CustomerName, pdfBytes.Length, uploadResult.GcsUrl ?? "N/A");
+                        request.CustomerName, pdfBytes.Length, gcsUrl);
 
                     return File(pdfBytes, "application/pdf", fileName);
                 }
@@ -499,6 +497,34 @@ public class TrafficLightsInvoiceController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting all Traffic Light tickets");
+            return StatusCode(500, $"Error retrieving tickets: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Read-only list of all open routine maintenance tickets
+    /// (mirrors the QuickBase "All Open Routine Tickets" report)
+    /// </summary>
+    [HttpGet("tickets/open-routine")]
+    public async Task<IActionResult> GetOpenRoutineTickets(
+        [FromHeader] string? Authorization,
+        [FromQuery] string? apiKey = null)
+    {
+        try
+        {
+            if (!IsAuthorized(Authorization, apiKey)) return Unauthorized();
+
+            var tickets = await _service.GetOpenRoutineTicketsAsync();
+
+            return Ok(new
+            {
+                totalCount = tickets.Count,
+                tickets
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting open routine maintenance tickets");
             return StatusCode(500, $"Error retrieving tickets: {ex.Message}");
         }
     }

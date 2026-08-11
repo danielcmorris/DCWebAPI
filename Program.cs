@@ -65,14 +65,10 @@ builder.Services.Configure<QuickBaseSettings>(
 builder.Services.AddHttpClient();
 builder.Services.Configure<Connections>(builder.Configuration.GetSection("ConnectionStrings"));
 builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<Connections>>().Value);
-// Register AzureBlobService in DI
-builder.Services.AddSingleton<AzureBlobService>();
-
-// Register Google Cloud Storage settings and services
+// Register Google Cloud Storage settings and service
 builder.Services.Configure<GoogleCloudStorageSettings>(
     builder.Configuration.GetSection("GoogleCloudStorage"));
 builder.Services.AddSingleton<GoogleCloudStorageService>();
-builder.Services.AddSingleton<DualStorageService>();
 
 builder.Services.AddScoped<DataLayerBase>();
 // Register StreetLightsService in DI

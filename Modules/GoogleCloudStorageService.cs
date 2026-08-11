@@ -34,7 +34,7 @@ public class GoogleCloudStorageService
             }
             else
             {
-                _logger.LogWarning("GoogleCloudStorageService not initialized - GCS uploads will be skipped");
+                _logger.LogWarning("GoogleCloudStorageService not initialized - GCS operations will fail");
             }
         }
         catch (Exception ex)
@@ -45,7 +45,7 @@ public class GoogleCloudStorageService
         }
     }
 
-    public bool IsEnabled => _isInitialized && _settings.EnableDualWrite;
+    public bool IsEnabled => _isInitialized;
 
     private (StorageClient?, GoogleCredential?) InitializeStorageClient()
     {
@@ -81,12 +81,16 @@ public class GoogleCloudStorageService
         return (StorageClient.Create(credential), credential);
     }
 
-    public async Task<string?> UploadFileAsync(byte[] fileBytes, string objectPath)
+    public async Task<string> UploadFileAsync(byte[] fileBytes, string objectPath)
     {
-        if (!IsEnabled || _storageClient == null)
+        if (!_isInitialized || _storageClient == null)
         {
-            _logger.LogDebug("GCS upload skipped - service not enabled or initialized");
-            return null;
+            throw new InvalidOperationException("Google Cloud Storage is not initialized - cannot upload. Check GCS credential configuration.");
+        }
+
+        if (_settings.MaxUploadSizeBytes > 0 && fileBytes.LongLength > _settings.MaxUploadSizeBytes)
+        {
+            throw new InvalidOperationException($"File {objectPath} is {fileBytes.LongLength} bytes, which exceeds the configured GCS upload limit of {_settings.MaxUploadSizeBytes} bytes.");
         }
 
         try
@@ -162,6 +166,72 @@ public class GoogleCloudStorageService
             objectPath,
             duration,
             HttpMethod.Get);
+    }
+
+    /// <summary>
+    /// Parses a gs://bucket/path URI into bucket name and object path.
+    /// </summary>
+    public static (string bucketName, string objectPath) ParseGsUri(string gsUri)
+    {
+        if (string.IsNullOrEmpty(gsUri) || !gsUri.StartsWith("gs://", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("URI must start with gs://", nameof(gsUri));
+        }
+
+        var uriWithoutPrefix = gsUri.Substring(5); // Remove "gs://"
+        var slashIndex = uriWithoutPrefix.IndexOf('/');
+        if (slashIndex < 0)
+        {
+            throw new ArgumentException("Invalid gs:// URI format - missing object path", nameof(gsUri));
+        }
+
+        return (uriWithoutPrefix.Substring(0, slashIndex), uriWithoutPrefix.Substring(slashIndex + 1));
+    }
+
+    /// <summary>
+    /// Downloads an object's bytes from a gs:// URI. Returns null if the object does not exist.
+    /// </summary>
+    public async Task<byte[]?> DownloadFromGsUriAsync(string gsUri)
+    {
+        if (_storageClient == null)
+        {
+            throw new InvalidOperationException("Google Cloud Storage is not initialized - cannot download.");
+        }
+
+        var (bucketName, objectPath) = ParseGsUri(gsUri);
+        try
+        {
+            using var stream = new MemoryStream();
+            await _storageClient.DownloadObjectAsync(bucketName, objectPath, stream);
+            return stream.ToArray();
+        }
+        catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            _logger.LogWarning("GCS object not found: {GsUri}", gsUri);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Deletes the object referenced by a gs:// URI. Returns false if the object was not found.
+    /// </summary>
+    public async Task<bool> DeleteFromGsUriAsync(string gsUri)
+    {
+        if (_storageClient == null)
+        {
+            throw new InvalidOperationException("Google Cloud Storage is not initialized - cannot delete.");
+        }
+
+        var (bucketName, objectPath) = ParseGsUri(gsUri);
+        try
+        {
+            await _storageClient.DeleteObjectAsync(bucketName, objectPath);
+            return true;
+        }
+        catch (Google.GoogleApiException ex) when (ex.HttpStatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return false;
+        }
     }
 
     public async Task<bool> ObjectExistsAsync(string objectPath)

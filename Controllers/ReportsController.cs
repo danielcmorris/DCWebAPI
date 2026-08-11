@@ -11,15 +11,13 @@ namespace DCElectricWebAPI.Controllers;
 [Route("api/[controller]")]
 public class ReportsController : ControllerBase
 {
-    private readonly AzureBlobService _blobService;
     private readonly GoogleCloudStorageService _gcsService;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<ReportsController> _logger;
     private readonly DataLayerBase _dl;
-    public ReportsController(AzureBlobService blobService, GoogleCloudStorageService gcsService, IHttpClientFactory httpClientFactory, DataLayerBase db, IConfiguration configuration, ILogger<ReportsController> logger)
+    public ReportsController(GoogleCloudStorageService gcsService, IHttpClientFactory httpClientFactory, DataLayerBase db, IConfiguration configuration, ILogger<ReportsController> logger)
     {
-        _blobService = blobService;
         _gcsService = gcsService;
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
@@ -118,8 +116,11 @@ public class ReportsController : ControllerBase
                 string strEnd = $"{report.EndDate.Year}{report.EndDate.Month:00}{report.EndDate.Day:00}";
                 string strNewReportFile = $"C:\\DCEG\\Billing\\{report.CustomerName}_{strStart}_{strEnd}.pdf";
                 byte[] pdfBytes = System.IO.File.ReadAllBytes(strNewReportFile);
-                string blobURL = await _blobService.UploadFileAsync(pdfBytes, $"{report.CustomerName}_{strStart}_{strEnd}.pdf");
-                await UpdateReportAsync(report.ReportID, "Uploaded", user.UserId, blobURL);
+                string fileName = $"{report.CustomerName}_{strStart}_{strEnd}.pdf";
+                string invoiceType = report.ReportType == "Traffic" ? "trafficlights" : "streetlights";
+                string gcsPath = InvoicePathBuilder.BuildInvoicePath(report.CustomerName, invoiceType, report.StartDate, fileName);
+                string gcsUrl = await _gcsService.UploadFileAsync(pdfBytes, gcsPath);
+                await UpdateReportAsync(report.ReportID, "Uploaded", user.UserId, gcsUrl: gcsUrl);
 
             }
             return Ok(new { message = "Retrying" });
@@ -131,21 +132,6 @@ public class ReportsController : ControllerBase
         }
 
     }
-    //[HttpGet]
-    //public async Task<IActionResult> GetAllFilesAsync()
-    //{
-    //    try
-    //    {
-    //        // Call the service to get the list of files
-    //        List<BlobFileInfo> files = await _blobService.GetAllFilesAsync();
-    //        return Ok(files);
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        return Pr1oblem(ex.Message, statusCode: StatusCodes.Status500InternalServerError);
-    //    }
-    //}
-
     [HttpGet("all/{reportType}")]
     public async Task<IActionResult> GetAllReports([FromHeader] string Authorization, [FromRoute] string reportType)
     {
@@ -185,8 +171,17 @@ public class ReportsController : ControllerBase
         _logger.LogInformation("Downlloading Blob Name: {BlobName}", blobName);
         try
         {
-            // Get the blob content as a byte array
-            byte[] blobData = await _blobService.GetBlobAsync(blobName);
+            var decodedBlobName = Uri.UnescapeDataString(blobName);
+
+            if (!decodedBlobName.StartsWith("gs://", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Download requested for legacy Azure blob {BlobName}; Azure storage has been retired", decodedBlobName);
+                return StatusCode(StatusCodes.Status410Gone,
+                    new { message = "This report predates the cloud storage migration and is no longer available. Please regenerate the report." });
+            }
+
+            // Get the object content as a byte array from Google Cloud Storage
+            byte[]? blobData = await _gcsService.DownloadFromGsUriAsync(decodedBlobName);
 
             if (blobData == null)
             {
@@ -195,7 +190,8 @@ public class ReportsController : ControllerBase
             }
 
             // Return the file as a File result with appropriate headers
-            return File(blobData, "application/pdf", blobName);
+            var fileName = decodedBlobName.Substring(decodedBlobName.LastIndexOf('/') + 1);
+            return File(blobData, "application/pdf", fileName);
         }
         catch (Exception ex)
         {
@@ -219,19 +215,15 @@ public class ReportsController : ControllerBase
             // Decode the blob name in case it's URL-encoded
             var decodedBlobName = Uri.UnescapeDataString(blobName);
 
-            string signedUrl;
+            if (!decodedBlobName.StartsWith("gs://", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Signed URL requested for legacy Azure blob {BlobName}; Azure storage has been retired", decodedBlobName);
+                return StatusCode(StatusCodes.Status410Gone,
+                    new { message = "This report predates the cloud storage migration and is no longer available. Please regenerate the report." });
+            }
 
-            // Check if this is a Google Cloud Storage URL (gs://)
-            if (decodedBlobName.StartsWith("gs://", StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogInformation("Generating GCS signed URL for: {GcsUri}", decodedBlobName);
-                signedUrl = _gcsService.GenerateSignedUrlFromGsUri(decodedBlobName, TimeSpan.FromHours(1));
-            }
-            else
-            {
-                // Azure Blob Storage
-                signedUrl = _blobService.GetSasUrlForBlob(decodedBlobName, inline: true);
-            }
+            _logger.LogInformation("Generating GCS signed URL for: {GcsUri}", decodedBlobName);
+            string signedUrl = _gcsService.GenerateSignedUrlFromGsUri(decodedBlobName, TimeSpan.FromHours(1));
 
             return Ok(new { url = signedUrl });
         }
@@ -283,19 +275,21 @@ public class ReportsController : ControllerBase
                             continue;
                         }
 
-                        if (string.IsNullOrEmpty(report.BlobURL))
+                        var storageUrl = !string.IsNullOrEmpty(report.GcsURL) ? report.GcsURL : report.BlobURL;
+                        if (string.IsNullOrEmpty(storageUrl))
                         {
-                            _logger.LogWarning("Report {ReportId} has no BlobURL", reportId);
+                            _logger.LogWarning("Report {ReportId} has no storage URL", reportId);
                             continue;
                         }
 
-                        // Extract blob path from BlobURL (e.g., "streetlights/filename.pdf" or "traffic/filename.pdf")
-                        var blobUri = new Uri(report.BlobURL);
-                        var blobPath = Uri.UnescapeDataString(string.Concat(blobUri.Segments.Skip(2)));
+                        if (!storageUrl.StartsWith("gs://", StringComparison.OrdinalIgnoreCase))
+                        {
+                            _logger.LogWarning("Report {ReportId} is stored in retired Azure storage; skipping", reportId);
+                            continue;
+                        }
 
-                        _logger.LogInformation("Downloading blob: {BlobPath}", blobPath);
-                        // Download the blob from Azure Storage
-                        byte[] blobData = await _blobService.GetBlobAsync(blobPath);
+                        _logger.LogInformation("Downloading from GCS: {GcsUri}", storageUrl);
+                        byte[]? blobData = await _gcsService.DownloadFromGsUriAsync(storageUrl);
 
                         if (blobData != null)
                         {
@@ -309,7 +303,7 @@ public class ReportsController : ControllerBase
                         }
                         else
                         {
-                            _logger.LogWarning("Blob not found for report {ReportId}: {BlobPath}", reportId, blobPath);
+                            _logger.LogWarning("Blob not found for report {ReportId}: {GcsUri}", reportId, storageUrl);
                         }
                     }
                 }
@@ -349,15 +343,19 @@ public class ReportsController : ControllerBase
                 return BadRequest(new { message = "Report is already deleted" });
             }
 
-            // Step 1: Attempt to delete the blob from Azure Blob Storage if the blob URL exists
+            // Step 1: Attempt to delete the stored PDF from Google Cloud Storage if one exists
             // If deletion fails (e.g., file not found), log and continue - the file is likely already gone
-            if (!string.IsNullOrEmpty(report.BlobURL))
+            if (!string.IsNullOrEmpty(report.GcsURL))
             {
-                bool isBlobDeleted = await _blobService.DeleteBlobAsync($"traffic/{report.ReportName}.pdf");
+                bool isBlobDeleted = await _gcsService.DeleteFromGsUriAsync(report.GcsURL);
                 if (!isBlobDeleted)
                 {
-                    _logger.LogWarning("Blob not found or could not be deleted for report {ReportId}: {BlobPath}. Proceeding with database deletion.", reportId, $"traffic/{report.ReportName}.pdf");
+                    _logger.LogWarning("GCS object not found or could not be deleted for report {ReportId}: {GcsUri}. Proceeding with database deletion.", reportId, report.GcsURL);
                 }
+            }
+            else if (!string.IsNullOrEmpty(report.BlobURL))
+            {
+                _logger.LogWarning("Report {ReportId} file is in retired Azure storage; skipping file deletion.", reportId);
             }
 
             // Step 2: Update the report status in the database to "Deleted" and set IsDeleted flag
@@ -406,15 +404,14 @@ public class ReportsController : ControllerBase
                             await UpdateReportAsync(report.ReportId, "Completed", userId);
                             string customerName = report.CustomerName;  // Get the customer name
 
-                            // Upload the byte array (PDF) to Azure Blob Storage
+                            // Upload the byte array (PDF) to Google Cloud Storage
                             string strStart = $"{startDate.Year}{startDate.Month:00}{startDate.Day:00}_";
                             string strEnd = $"{endDate.Year}{endDate.Month:00}{endDate.Day:00}";
-                            //byte[] pdfBytes = System.IO.File.ReadAllBytes(strNewReportFile);
-                            //string blobURL = await _blobService.UploadFileAsync(pdfBytes, $"{report.CustomerName}_{strStart}_{strEnd}.pdf");
-                            string blobURL = await _blobService.UploadFileAsync(report.File, $"{report.CustomerName}_{strStart}_{strEnd}.pdf");
-                            await UpdateReportAsync(report.ReportId, "Uploaded", userId, blobURL);
-                            string strNewReportFile = $"C:\\DCEG\\Billing\\{report.CustomerName}_{strStart}_{strEnd}.pdf";
-                            System.IO.File.WriteAllBytes(strNewReportFile, report.File);
+                            string fileName = $"{report.CustomerName}_{strStart}_{strEnd}.pdf";
+                            string invoiceType = reportType == "Traffic" ? "trafficlights" : "streetlights";
+                            string gcsPath = InvoicePathBuilder.BuildInvoicePath(customerName, invoiceType, startDate, fileName);
+                            string gcsUrl = await _gcsService.UploadFileAsync(report.File, gcsPath);
+                            await UpdateReportAsync(report.ReportId, "Uploaded", userId, gcsUrl: gcsUrl);
                         }
                         else
                         {
@@ -513,12 +510,13 @@ public class ReportsController : ControllerBase
         }
 
     }
-    private async Task UpdateReportAsync(Guid reportId, string status, int updateById, string blobUrl = null, bool isDeleted = false, string message = null)
+    private async Task UpdateReportAsync(Guid reportId, string status, int updateById, string blobUrl = null, bool isDeleted = false, string message = null, string gcsUrl = null)
     {
         var sql = @"
         UPDATE Report
         SET GenerationStatus = @GenerationStatus,
             BlobURL = @BlobURL,
+            GcsURL = COALESCE(@GcsURL, GcsURL),
             IsDeleted = @IsDeleted,
             Message = @Message,
             UpdatedDate = NOW(),
@@ -530,12 +528,13 @@ public class ReportsController : ControllerBase
             {
                 GenerationStatus = status,
                 BlobURL = blobUrl,
+                GcsURL = gcsUrl,
                 IsDeleted = isDeleted ? 1 : 0,
                 Message = message,
                 ReportID = reportId,
                 UpdatedByID = updateById
             });
-      
+
     }
     private async Task<Report> GetReportByIdAsync(Guid reportId)
     {

@@ -25,7 +25,7 @@ Frontend (Angular) → DCElectricWebAPI → Quickbase REST API
 ## Key Technologies
 - .NET 8 / ASP.NET Core Web API
 - Quickbase REST API (JSON-based)
-- Google Cloud Storage (report/PDF storage), GCP project `morrisdev-203721`
+- Google Cloud Storage (sole report/PDF storage; uploads have a configured size cap via `GoogleCloudStorage:MaxUploadSizeBytes`), GCP project `morrisdev-203721`. Azure Blob was retired 2026-08; reports whose DB row has only an Azure `BlobURL` (pre-Feb-2026) return 410 Gone and must be regenerated.
 - PostgreSQL via Npgsql (Cloud SQL in production)
 - ABCpdf (WebSupergoo) for PDF generation — uses the Chrome/`ABCChrome123` engine on Linux
 - Serilog logging
@@ -86,10 +86,10 @@ Content-Type: application/json
 
 | App Name | App ID | Config Key | Purpose |
 |----------|--------|-----------|---------|
-| Street Lights | `bjrvqd33c` | `quickbase:apps:streetlights` | Main ticket/work order system |
-| Jobs | `bkykszyj4` | `quickbase:apps:jobs` | Job tracking |
-| Safety | `bk2wutv6x` | `quickbase:apps:safety` | Safety records |
-| Timesheets | `bhrneweey` | `quickbase:apps:ts` | Time tracking |
+| Street Lights | `bjrvqd33c` | `quickbase:apps:streetlights` | Streetlights tickets/work orders and billing (`StreetLightsService`) |
+| Traffic Signal | `bhrneweey` | `quickbase:apps:ts` | Traffic signal tickets and labor/material/equipment billing (`TrafficLightsService`) |
+
+The **Jobs** (`bkykszyj4`, `quickbase:apps:jobs`) and **Safety** (`bk2wutv6x`, `quickbase:apps:safety`) apps are still listed in `appsettings.json` but are **not referenced anywhere in this API's code** — they are only used by the legacy Qbk2Qbase console app (job sync and safety-employee sync).
 
 ### API Base URL
 ```
@@ -346,7 +346,7 @@ do
 
 | Service | Purpose | Config Key |
 |---------|---------|------------|
-| Google Cloud Storage | PDF/report storage | `GoogleCloudStorage:*` (credential file mounted at `/app/secrets/gcs-key.json`) |
+| Google Cloud Storage | PDF/report storage (sole store) | `GoogleCloudStorage:*` incl. `MaxUploadSizeBytes` (credential file mounted at `/app/secrets/gcs-key.json`) |
 | PostgreSQL (Cloud SQL) | Report metadata/caching | `ConnectionStrings:DefaultConnection` |
 | QuickBase | Source data | `quickbase:token`, `quickbase:domain` |
 

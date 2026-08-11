@@ -10,7 +10,7 @@ public class StreetlightsInvoiceController : ControllerBase
 {
     private readonly StreetLightsService _service;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly DualStorageService _dualStorageService;
+    private readonly GoogleCloudStorageService _gcsService;
     private readonly ILogger<StreetlightsInvoiceController> _logger;
     private readonly DataLayerBase _dl;
     // API key for bypassing standard auth (for testing/internal use)
@@ -19,14 +19,14 @@ public class StreetlightsInvoiceController : ControllerBase
     public StreetlightsInvoiceController(
         StreetLightsService service,
         IServiceScopeFactory scopeFactory,
-        DualStorageService dualStorageService,
+        GoogleCloudStorageService gcsService,
         DataLayerBase dl,
         ILogger<StreetlightsInvoiceController> logger)
     {
         _dl = dl;
         _service = service;
         _scopeFactory = scopeFactory;
-        _dualStorageService = dualStorageService;
+        _gcsService = gcsService;
         _logger = logger;
 
     }
@@ -200,20 +200,19 @@ public class StreetlightsInvoiceController : ControllerBase
                 string strEnd = $"{task.Request.EndDate.Year}{task.Request.EndDate.Month:00}{task.Request.EndDate.Day:00}";
                 string fileName = $"{task.Request.CustomerName}_{strStart}_{strEnd}.pdf";
 
-                // Upload to Azure and GCS (dual-write)
+                // Upload to Google Cloud Storage
                 _logger.LogInformation("Uploading fixture PDF for {Customer}, ReportID: {ReportId}, FileName: {FileName}",
                     task.Request.CustomerName, task.ReportId, fileName);
-                var uploadResult = await _dualStorageService.UploadAsync(
-                    pdfBytes, fileName, "streetlights",
-                    task.Request.CustomerName, "streetlights", task.Request.StartDate);
-                _logger.LogInformation("Uploaded fixture PDF for {Customer}, ReportID: {ReportId}, AzureUrl: {AzureUrl}, GcsUrl: {GcsUrl}",
-                    task.Request.CustomerName, task.ReportId, uploadResult.AzureUrl, uploadResult.GcsUrl ?? "N/A");
+                var gcsPath = InvoicePathBuilder.BuildInvoicePath(task.Request.CustomerName, "streetlights", task.Request.StartDate, fileName);
+                var gcsUrl = await _gcsService.UploadFileAsync(pdfBytes, gcsPath);
+                _logger.LogInformation("Uploaded fixture PDF for {Customer}, ReportID: {ReportId}, GcsUrl: {GcsUrl}",
+                    task.Request.CustomerName, task.ReportId, gcsUrl);
 
                 // Update report status to completed/uploaded with fixture count
                 _logger.LogInformation("Updating report status to Uploaded for {Customer}, ReportID: {ReportId}",
                     task.Request.CustomerName, task.ReportId);
-                await UpdateReportAsync(task.ReportId, "Uploaded", userId, uploadResult.AzureUrl,
-                    ticketCount: response.TotalFixtures, gcsUrl: uploadResult.GcsUrl);
+                await UpdateReportAsync(task.ReportId, "Uploaded", userId,
+                    ticketCount: response.TotalFixtures, gcsUrl: gcsUrl);
 
                 _logger.LogInformation("Completed fixture report for {Customer}, ReportID: {ReportId}, FixtureCount: {Count}",
                     task.Request.CustomerName, task.ReportId, response.TotalFixtures);
@@ -290,20 +289,19 @@ public class StreetlightsInvoiceController : ControllerBase
                 string strEnd = $"{task.Request.EndDate.Year}{task.Request.EndDate.Month:00}{task.Request.EndDate.Day:00}";
                 string fileName = $"{task.Request.CustomerName}_{strStart}_{strEnd}.pdf";
 
-                // Upload to Azure and GCS (dual-write)
+                // Upload to Google Cloud Storage
                 _logger.LogInformation("Uploading ticket PDF for {Customer}, ReportID: {ReportId}, FileName: {FileName}",
                     task.Request.CustomerName, task.ReportId, fileName);
-                var uploadResult = await _dualStorageService.UploadAsync(
-                    pdfBytes, fileName, "streetlights",
-                    task.Request.CustomerName, "streetlights", task.Request.StartDate);
-                _logger.LogInformation("Uploaded ticket PDF for {Customer}, ReportID: {ReportId}, AzureUrl: {AzureUrl}, GcsUrl: {GcsUrl}",
-                    task.Request.CustomerName, task.ReportId, uploadResult.AzureUrl, uploadResult.GcsUrl ?? "N/A");
+                var gcsPath = InvoicePathBuilder.BuildInvoicePath(task.Request.CustomerName, "streetlights", task.Request.StartDate, fileName);
+                var gcsUrl = await _gcsService.UploadFileAsync(pdfBytes, gcsPath);
+                _logger.LogInformation("Uploaded ticket PDF for {Customer}, ReportID: {ReportId}, GcsUrl: {GcsUrl}",
+                    task.Request.CustomerName, task.ReportId, gcsUrl);
 
                 // Update report status to completed/uploaded with ticket count
                 _logger.LogInformation("Updating report status to Uploaded for {Customer}, ReportID: {ReportId}",
                     task.Request.CustomerName, task.ReportId);
-                await UpdateReportAsync(task.ReportId, "Uploaded", userId, uploadResult.AzureUrl,
-                    ticketCount: response.TicketCount, gcsUrl: uploadResult.GcsUrl);
+                await UpdateReportAsync(task.ReportId, "Uploaded", userId,
+                    ticketCount: response.TicketCount, gcsUrl: gcsUrl);
 
                 _logger.LogInformation("Completed ticket report for {Customer}, ReportID: {ReportId}, TicketCount: {Count}",
                     task.Request.CustomerName, task.ReportId, response.TicketCount);
@@ -332,7 +330,7 @@ public class StreetlightsInvoiceController : ControllerBase
     /// </summary>
     /// <remarks>
     /// Accepts an array of report requests, creates report records in the database,
-    /// starts background tasks to generate PDFs and upload to Azure, then returns
+    /// starts background tasks to generate PDFs and upload to Google Cloud Storage, then returns
     /// the report IDs immediately for status polling.
     /// </remarks>
     [HttpPost("fixture")]
@@ -387,14 +385,13 @@ public class StreetlightsInvoiceController : ControllerBase
 
                     var pdfBytes = _service.GenerateFixtureBillingPdf(response);
 
-                    var uploadResult = await _dualStorageService.UploadAsync(
-                        pdfBytes, fileName, "streetlights",
-                        request.CustomerName, "streetlights", request.StartDate);
-                    await UpdateReportAsync(createdReport.ReportID, "Uploaded", userId, uploadResult.AzureUrl,
-                        ticketCount: response.TotalFixtures, gcsUrl: uploadResult.GcsUrl);
+                    var gcsPath = InvoicePathBuilder.BuildInvoicePath(request.CustomerName, "streetlights", request.StartDate, fileName);
+                    var gcsUrl = await _gcsService.UploadFileAsync(pdfBytes, gcsPath);
+                    await UpdateReportAsync(createdReport.ReportID, "Uploaded", userId,
+                        ticketCount: response.TotalFixtures, gcsUrl: gcsUrl);
 
                     _logger.LogInformation("Completed synchronous fixture PDF for {Customer}, Size: {Size} bytes, GcsUrl: {GcsUrl}",
-                        request.CustomerName, pdfBytes.Length, uploadResult.GcsUrl ?? "N/A");
+                        request.CustomerName, pdfBytes.Length, gcsUrl);
 
                     return File(pdfBytes, "application/pdf", fileName);
                 }
@@ -496,7 +493,7 @@ public class StreetlightsInvoiceController : ControllerBase
     /// </summary>
     /// <remarks>
     /// Accepts an array of report requests, creates report records in the database,
-    /// starts background tasks to generate PDFs and upload to Azure, then returns
+    /// starts background tasks to generate PDFs and upload to Google Cloud Storage, then returns
     /// the report IDs immediately for status polling.
     /// </remarks>
     [HttpPost("tickets")]
@@ -587,14 +584,13 @@ public class StreetlightsInvoiceController : ControllerBase
 
                     var pdfBytes = _service.GenerateTicketBillingPdf(response);
 
-                    var uploadResult = await _dualStorageService.UploadAsync(
-                        pdfBytes, fileName, "streetlights",
-                        request.CustomerName, "streetlights", request.StartDate);
-                    await UpdateReportAsync(createdReport.ReportID, "Uploaded", userId, uploadResult.AzureUrl,
-                        ticketCount: response.TicketCount, gcsUrl: uploadResult.GcsUrl);
+                    var gcsPath = InvoicePathBuilder.BuildInvoicePath(request.CustomerName, "streetlights", request.StartDate, fileName);
+                    var gcsUrl = await _gcsService.UploadFileAsync(pdfBytes, gcsPath);
+                    await UpdateReportAsync(createdReport.ReportID, "Uploaded", userId,
+                        ticketCount: response.TicketCount, gcsUrl: gcsUrl);
 
                     _logger.LogInformation("Completed synchronous ticket PDF for {Customer}, Size: {Size} bytes, GcsUrl: {GcsUrl}",
-                        request.CustomerName, pdfBytes.Length, uploadResult.GcsUrl ?? "N/A");
+                        request.CustomerName, pdfBytes.Length, gcsUrl);
 
                     return File(pdfBytes, "application/pdf", fileName);
                 }

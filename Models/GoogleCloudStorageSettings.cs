@@ -7,5 +7,6 @@ public class GoogleCloudStorageSettings
     public string SecretManagerProjectId { get; set; } = string.Empty;
     public string CredentialSecretName { get; set; } = string.Empty;
     public string LocalCredentialPath { get; set; } = string.Empty;
-    public bool EnableDualWrite { get; set; } = true;
+    // Hard cap on upload size — files pushed to Google services must have a strict, configured size limit
+    public long MaxUploadSizeBytes { get; set; } = 52428800; // 50 MB
 }
