@@ -70,6 +70,12 @@ builder.Services.Configure<GoogleCloudStorageSettings>(
     builder.Configuration.GetSection("GoogleCloudStorage"));
 builder.Services.AddSingleton<GoogleCloudStorageService>();
 
+builder.Services.AddMemoryCache();
+// Register OpenProject settings and service (Support page tickets)
+builder.Services.Configure<OpenProjectSettings>(
+    builder.Configuration.GetSection("openproject"));
+builder.Services.AddScoped<OpenProjectService>();
+
 builder.Services.AddScoped<DataLayerBase>();
 // Register StreetLightsService in DI
 builder.Services.AddScoped<StreetLightsService>();

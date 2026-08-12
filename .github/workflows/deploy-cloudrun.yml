@@ -44,5 +44,5 @@ jobs:
             --min-instances 0 \
             --max-instances 10 \
             --set-env-vars=ASPNETCORE_ENVIRONMENT=Production \
-            --set-secrets="ConnectionStrings__DefaultConnection=dcelectric-db-connection:latest,quickbase__token=dcelectric-qb-token:latest,Websupergoo__license=dcelectric-abcpdf-license:latest,/app/secrets/gcs-key.json=dcelectric-service-account-key:latest" \
+            --set-secrets="ConnectionStrings__DefaultConnection=dcelectric-db-connection:latest,quickbase__token=dcelectric-qb-token:latest,Websupergoo__license=dcelectric-abcpdf-license:latest,openproject__apiKey=dcelectric-openproject-key:latest,/app/secrets/gcs-key.json=dcelectric-service-account-key:latest" \
             --quiet
