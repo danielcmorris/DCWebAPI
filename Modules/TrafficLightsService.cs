@@ -1415,8 +1415,9 @@ public class TrafficLightsService
             }
         }
 
-        // Ticket Total
-        if (showPricing && !ticket.IsRoutineMaintenance)
+        // Ticket Total (Job tickets are billed separately on the job, so no total line here)
+        if (showPricing && !ticket.IsRoutineMaintenance &&
+            !string.Equals(ticket.ServiceType, "Job", StringComparison.OrdinalIgnoreCase))
         {
             sb.Append($"<div class='ticket-total'><strong>Total: {ticket.TicketTotal:C}</strong></div>");
         }
