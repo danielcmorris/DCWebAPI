@@ -1349,11 +1349,11 @@ public class TrafficLightsService
         sb.Append($"<div class='info-row'><span class='info-label'>Problem:</span> {System.Net.WebUtility.HtmlEncode(ticket.ProblemType)}</div>");
         sb.Append("</td></tr></table>");
 
-        // Details and Notes
+        // Details and Analysis
         sb.Append($"<div class='info-row'><span class='info-label'>Details:</span> {System.Net.WebUtility.HtmlEncode(ticket.Details)}</div>");
         if (!string.IsNullOrEmpty(ticket.Analysis))
         {
-            sb.Append($"<div class='info-row'><span class='info-label'>Notes:</span> {System.Net.WebUtility.HtmlEncode(ticket.Analysis)}</div>");
+            sb.Append($"<div class='info-row'><span class='info-label'>Analysis:</span> {System.Net.WebUtility.HtmlEncode(ticket.Analysis)}</div>");
         }
 
         // Show Maintenance Fee if Routine, otherwise show line items
