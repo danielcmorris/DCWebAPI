@@ -722,6 +722,14 @@ public class StreetLightsService
         // Get tickets for the customer and date range
         var tickets = await GetTicketsAsync(request.CustomerName, request.StartDate, request.EndDate, request.DivisionId);
 
+        // Sort tickets chronologically by when the work was done (to match the Cotati Billing Report in Quickbase)
+        tickets = tickets
+            .OrderBy(t => t.CustomerName)
+            .ThenBy(t => t.LocationAddress)
+            .ThenBy(t => t.CompletionDate)
+            .ThenBy(t => GetCompletionTimeSortKey(t.CompletionTime))
+            .ToList();
+
         if (tickets.Count == 0)
         {
             return new TicketBillingResponse
@@ -1769,6 +1777,21 @@ public class StreetLightsService
         }
 
         return value;
+    }
+
+    // CompletionTime is stored as "h:mm tt" (non-zero-padded), which does not sort
+    // correctly as a plain string (e.g. "10:00 AM" < "9:30 AM" lexically). Parse it
+    // back into a TimeSpan so same-day tickets sort in true chronological order.
+    private static TimeSpan GetCompletionTimeSortKey(string value)
+    {
+        if (!string.IsNullOrEmpty(value) &&
+            DateTime.TryParseExact(value, "h:mm tt", System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var parsed))
+        {
+            return parsed.TimeOfDay;
+        }
+
+        return TimeSpan.Zero;
     }
 
     #endregion

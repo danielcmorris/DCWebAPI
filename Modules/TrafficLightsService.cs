@@ -365,21 +365,12 @@ public class TrafficLightsService
               !string.IsNullOrEmpty(t.ServiceCategory) &&
               t.ServiceCategory.Equals("L&M", StringComparison.OrdinalIgnoreCase))).ToList();
 
-        // Sort tickets by LocationType (custom order), then Location, then TicketId (to match legacy report)
-        // Custom LocationType order: Signalized Intersection first, then Other, then Caltrans
-        Func<string, int> getLocationTypeSortOrder = (locationType) =>
-        {
-            if (string.IsNullOrEmpty(locationType)) return 99;
-            if (locationType.Contains("Signalized", StringComparison.OrdinalIgnoreCase)) return 1;
-            if (locationType.Contains("Other", StringComparison.OrdinalIgnoreCase)) return 2;
-            if (locationType.Contains("Caltrans", StringComparison.OrdinalIgnoreCase)) return 3;
-            return 50; // Unknown types sort in the middle
-        };
-
+        // Sort tickets chronologically by when the work was done (to match the Cotati Billing Report in Quickbase)
         tickets = tickets
-            .OrderBy(t => getLocationTypeSortOrder(t.LocationType))
+            .OrderBy(t => t.CustomerName)
             .ThenBy(t => t.Location)
-            .ThenBy(t => t.TicketId)
+            .ThenBy(t => t.CompletionDate)
+            .ThenBy(t => GetCompletionTimeSortKey(t.CompletionTime))
             .ToList();
 
         // Build materials usage summary
@@ -1607,6 +1598,21 @@ public class TrafficLightsService
         }
 
         return value;
+    }
+
+    // CompletionTime is stored as "h:mm tt" (non-zero-padded), which does not sort
+    // correctly as a plain string (e.g. "10:00 AM" < "9:30 AM" lexically). Parse it
+    // back into a TimeSpan so same-day tickets sort in true chronological order.
+    private static TimeSpan GetCompletionTimeSortKey(string value)
+    {
+        if (!string.IsNullOrEmpty(value) &&
+            DateTime.TryParseExact(value, "h:mm tt", System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var parsed))
+        {
+            return parsed.TimeOfDay;
+        }
+
+        return TimeSpan.Zero;
     }
 
     #endregion
