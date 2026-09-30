@@ -1568,15 +1568,14 @@ public class StreetLightsService
         sb.Append($"<div class='info-row'><span class='info-label'>Problem Type:</span> {System.Net.WebUtility.HtmlEncode(ticket.ProblemType)}</div>");
         sb.Append($"<div class='info-row'><span class='info-label'>Technician:</span> {System.Net.WebUtility.HtmlEncode(ticket.Technician)}</div>");
         sb.Append("</td><td style='width:50%;vertical-align:top;border:none;padding:0;'>");
-        sb.Append($"<div class='info-row'><span class='info-label'>Cross Street:</span> {System.Net.WebUtility.HtmlEncode(ticket.LocationCrossStreet)}</div>");
         sb.Append($"<div class='info-row'><span class='info-label'>Date Opened:</span> {ticket.DateTimeOpened?.ToShortDateString() ?? ""}</div>");
         sb.Append($"<div class='info-row'><span class='info-label'>CallerType:</span> {System.Net.WebUtility.HtmlEncode(ticket.CallerType)}</div>");
         sb.Append($"<div class='info-row'><span class='info-label'>Fixture Type:</span> {System.Net.WebUtility.HtmlEncode(ticket.FixtureType)}</div>");
         sb.Append($"<div class='info-row'><span class='info-label'>Service Type:</span> {System.Net.WebUtility.HtmlEncode(ticket.ServiceType)}</div>");
-        sb.Append($"<div class='info-row'><span class='info-label'>Details:</span> {System.Net.WebUtility.HtmlEncode(ticket.Details)}</div>");
         sb.Append("</td></tr></table>");
 
-        // Analysis
+        // Details and Analysis
+        sb.Append($"<div class='info-row'><span class='info-label'>Details:</span> {System.Net.WebUtility.HtmlEncode(ticket.Details)}</div>");
         sb.Append($"<div class='analysis'><span class='info-label' style='text-decoration:underline;'>Analysis:</span> {System.Net.WebUtility.HtmlEncode(ticket.Analysis)}</div>");
 
         // Labor table
