@@ -1540,7 +1540,7 @@ public class StreetLightsService
                 td { padding: 4px; }
                 td.right { text-align: right; }
                 .total-row { border-top: 1px solid #000; font-weight: bold; }
-                .analysis { margin-top: 10px; }
+                .analysis { margin-top: 10px; margin-bottom: 14px; }
                 .hang { padding-left: 120px; text-indent: -120px; }
             </style>
             </head>
