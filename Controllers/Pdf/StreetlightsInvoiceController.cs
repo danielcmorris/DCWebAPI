@@ -155,6 +155,29 @@ public class StreetlightsInvoiceController : ControllerBase
     #region Background Processing
 
     /// <summary>
+    /// Re-run an existing Streetlight report row (Fixture or Ticket) through the in-API pipeline (used by Retry/Rebuild).
+    /// </summary>
+    public Task RegenerateAsync(Report report, int userId)
+    {
+        var tasks = new List<ReportTask>
+        {
+            new ReportTask
+            {
+                ReportId = report.ReportID,
+                Request = new FixtureBillingRequest
+                {
+                    CustomerName = report.CustomerName,
+                    StartDate = report.StartDate,
+                    EndDate = report.EndDate
+                }
+            }
+        };
+        return string.Equals(report.StrButton, "Fixture", StringComparison.OrdinalIgnoreCase)
+            ? ProcessFixtureReportsAsync(tasks, userId)
+            : ProcessTicketReportsAsync(tasks, userId);
+    }
+
+    /// <summary>
     /// Process fixture reports in the background
     /// </summary>
     private async Task ProcessFixtureReportsAsync(List<ReportTask> reportTasks, int userId)

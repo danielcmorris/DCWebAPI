@@ -151,6 +151,26 @@ public class TrafficLightsInvoiceController : ControllerBase
     #region Background Processing
 
     /// <summary>
+    /// Re-run an existing Traffic report row through the in-API pipeline (used by Retry/Rebuild).
+    /// </summary>
+    public Task RegenerateAsync(Report report, int userId)
+    {
+        return ProcessTicketReportsAsync(new List<TrafficReportTask>
+        {
+            new TrafficReportTask
+            {
+                ReportId = report.ReportID,
+                Request = new TrafficTicketBillingRequest
+                {
+                    CustomerName = report.CustomerName,
+                    StartDate = report.StartDate,
+                    EndDate = report.EndDate
+                }
+            }
+        }, userId);
+    }
+
+    /// <summary>
     /// Process ticket reports in the background
     /// </summary>
     private async Task ProcessTicketReportsAsync(List<TrafficReportTask> reportTasks, int userId)
