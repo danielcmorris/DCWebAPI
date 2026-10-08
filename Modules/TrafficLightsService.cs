@@ -1272,7 +1272,7 @@ public class TrafficLightsService
                 .location-header { font-weight: bold; margin-bottom: 5px; border-bottom: 2px solid #000; padding-bottom: 3px; }
                 .ticket-section { margin-bottom: 20px; border-bottom: 1px solid #ccc; padding-bottom: 10px; break-inside: avoid; page-break-inside: avoid; }
                 .info-row { margin-bottom: 3px; }
-                .analysis-row { margin-top: 14px; }
+                .analysis-row { margin-top: 14px; margin-bottom: 14px; }
                 .info-label { font-weight: bold; display: inline-block; width: 120px; }
                 .section-title { font-weight: bold; text-decoration: underline; margin-top: 10px; margin-bottom: 5px; }
                 table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 10px; font-size: 9pt; }
