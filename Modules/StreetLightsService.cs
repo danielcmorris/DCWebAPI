@@ -1642,6 +1642,7 @@ public class StreetLightsService
             <style>
                 body { font-family: 'Liberation Sans', Arial, sans-serif; font-size: 11pt; margin: 0; padding: 0; }
                 .summary-title { font-size: 14pt; font-weight: bold; margin-bottom: 15px; }
+                .summary-spacer { height: 30px; }
                 .total-row { margin-bottom: 8px; }
                 .total-label { display: inline-block; width: 250px; }
                 .total-value { font-weight: bold; }
@@ -1656,6 +1657,7 @@ public class StreetLightsService
             <body>");
 
         // Cost summary
+        sb.Append("<div class='summary-spacer'></div>");
         sb.Append($"<div class='total-row'><span class='total-label'>Total Labor Costs:</span> <span class='total-value'>{data.TotalLaborCost:C}</span></div>");
         sb.Append($"<div class='total-row'><span class='total-label'>Total Equipment Costs:</span> <span class='total-value'>{data.TotalEquipmentCost:C}</span></div>");
         sb.Append($"<div class='total-row'><span class='total-label'>Total Materials Costs:</span> <span class='total-value'>{data.TotalMaterialsCost:C}</span></div>");
