@@ -1541,6 +1541,7 @@ public class StreetLightsService
                 td.right { text-align: right; }
                 .total-row { border-top: 1px solid #000; font-weight: bold; }
                 .analysis { margin-top: 10px; }
+                .hang { padding-left: 120px; text-indent: -120px; }
             </style>
             </head>
             <body>");
@@ -1575,8 +1576,8 @@ public class StreetLightsService
         sb.Append("</td></tr></table>");
 
         // Details and Analysis
-        sb.Append($"<div class='info-row'><span class='info-label'>Details:</span> {System.Net.WebUtility.HtmlEncode(ticket.Details)}</div>");
-        sb.Append($"<div class='analysis'><span class='info-label' style='text-decoration:underline;'>Analysis:</span> {System.Net.WebUtility.HtmlEncode(ticket.Analysis)}</div>");
+        sb.Append($"<div class='info-row hang'><span class='info-label'>Details:</span> {System.Net.WebUtility.HtmlEncode(ticket.Details)}</div>");
+        sb.Append($"<div class='analysis hang'><span class='info-label' style='text-decoration:underline;'>Analysis:</span> {System.Net.WebUtility.HtmlEncode(ticket.Analysis)}</div>");
 
         // Labor table
         if (ticket.LaborItems.Count > 0 && IsMaintenanceJob(ticket.JobNumber))

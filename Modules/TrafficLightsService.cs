@@ -1273,6 +1273,7 @@ public class TrafficLightsService
                 .ticket-section { margin-bottom: 20px; border-bottom: 1px solid #ccc; padding-bottom: 10px; break-inside: avoid; page-break-inside: avoid; }
                 .info-row { margin-bottom: 3px; }
                 .analysis-row { margin-top: 14px; }
+                .hang { padding-left: 120px; text-indent: -120px; }
                 .info-label { font-weight: bold; display: inline-block; width: 120px; }
                 .section-title { font-weight: bold; text-decoration: underline; margin-top: 10px; margin-bottom: 5px; }
                 table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 10px; font-size: 9pt; }
@@ -1351,10 +1352,10 @@ public class TrafficLightsService
         sb.Append("</td></tr></table>");
 
         // Details and Analysis
-        sb.Append($"<div class='info-row'><span class='info-label'>Details:</span> {System.Net.WebUtility.HtmlEncode(ticket.Details)}</div>");
+        sb.Append($"<div class='info-row hang'><span class='info-label'>Details:</span> {System.Net.WebUtility.HtmlEncode(ticket.Details)}</div>");
         if (!string.IsNullOrEmpty(ticket.Analysis))
         {
-            sb.Append($"<div class='info-row analysis-row'><span class='info-label'>Analysis:</span> {System.Net.WebUtility.HtmlEncode(ticket.Analysis)}</div>");
+            sb.Append($"<div class='info-row analysis-row hang'><span class='info-label'>Analysis:</span> {System.Net.WebUtility.HtmlEncode(ticket.Analysis)}</div>");
         }
 
         // Show Maintenance Fee if Routine, otherwise show line items
