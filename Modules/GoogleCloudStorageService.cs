@@ -51,13 +51,23 @@ public class GoogleCloudStorageService
     {
         GoogleCredential? credential = null;
 
-        // Try loading from local file first (development) - required for URL signing
-        if (!string.IsNullOrEmpty(_settings.LocalCredentialPath) && File.Exists(_settings.LocalCredentialPath))
+        // A credential file is configured: it must exist. Never silently fall back to
+        // Application Default Credentials here - on a dev machine that is a personal
+        // gcloud login, which would write to the bucket as the wrong identity.
+        if (!string.IsNullOrEmpty(_settings.LocalCredentialPath))
         {
+            if (!File.Exists(_settings.LocalCredentialPath))
+            {
+                _logger.LogError(
+                    "GCS credential file configured but not found: {Path} (resolved: {Full}). Refusing to fall back to Application Default Credentials.",
+                    _settings.LocalCredentialPath, Path.GetFullPath(_settings.LocalCredentialPath));
+                return (null, null);
+            }
+
             _logger.LogInformation("Loading GCS credentials from local file: {Path}", _settings.LocalCredentialPath);
             credential = GoogleCredential.FromFile(_settings.LocalCredentialPath);
         }
-        // Try Application Default Credentials (works in Cloud Run with service account)
+        // No file configured: Application Default Credentials (Cloud Run service account)
         else
         {
             try
