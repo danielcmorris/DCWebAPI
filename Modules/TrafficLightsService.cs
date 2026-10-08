@@ -1249,8 +1249,8 @@ public class TrafficLightsService
     }
 
     /// <summary>
-    /// Build HTML for a location group (all tickets at one location with location subtotals)
-    /// Matches legacy report format with LocationType header and location subtotals
+    /// Build HTML for a location group (all tickets at one location)
+    /// Matches legacy report format with LocationType header
     /// </summary>
     private string BuildLocationGroupHtml(
         string locationType,
@@ -1303,25 +1303,6 @@ public class TrafficLightsService
         {
             sb.Append(BuildTicketSectionHtml(ticket));
         }
-
-        // Calculate and render location subtotals
-        decimal locationLaborCost = tickets.Sum(t => t.TicketLaborTotal);
-        decimal locationMaterialsCost = tickets.Sum(t => t.TicketMaterialsTotal);
-        decimal locationEquipmentCost = tickets.Sum(t => t.TicketEquipmentTotal);
-        decimal locationMaintenanceCost = tickets.Where(t => t.IsRoutineMaintenance).Sum(t => t.MaintenanceFee);
-        decimal locationTotal = tickets.Sum(t => t.TicketTotal);
-
-        sb.Append("<div class='location-totals'>");
-        sb.Append($"<div class='subtotal-row'><span class='subtotal-label'>{System.Net.WebUtility.HtmlEncode(location)} Totals:</span></div>");
-        sb.Append($"<div class='subtotal-row'><span class='subtotal-label' style='margin-left:20px;'>Labor Cost:</span> <span class='subtotal-value'>{locationLaborCost:C}</span></div>");
-        sb.Append($"<div class='subtotal-row'><span class='subtotal-label' style='margin-left:20px;'>Materials Cost:</span> <span class='subtotal-value'>{locationMaterialsCost:C}</span></div>");
-        sb.Append($"<div class='subtotal-row'><span class='subtotal-label' style='margin-left:20px;'>Equipment Cost:</span> <span class='subtotal-value'>{locationEquipmentCost:C}</span></div>");
-        if (locationMaintenanceCost > 0)
-        {
-            sb.Append($"<div class='subtotal-row'><span class='subtotal-label' style='margin-left:20px;'>Maintenance Cost:</span> <span class='subtotal-value'>{locationMaintenanceCost:C}</span></div>");
-        }
-        sb.Append($"<div class='subtotal-row' style='border-top: 1px solid #000; padding-top: 5px; margin-top: 5px;'><span class='subtotal-label' style='margin-left:20px;'>Total:</span> <span class='subtotal-value'>{locationTotal:C}</span></div>");
-        sb.Append("</div>");
 
         sb.Append("</body></html>");
         return sb.ToString();
