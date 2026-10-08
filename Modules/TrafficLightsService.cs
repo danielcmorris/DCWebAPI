@@ -1273,7 +1273,6 @@ public class TrafficLightsService
                 .ticket-section { margin-bottom: 20px; border-bottom: 1px solid #ccc; padding-bottom: 10px; break-inside: avoid; page-break-inside: avoid; }
                 .info-row { margin-bottom: 3px; }
                 .analysis-row { margin-top: 14px; }
-                .hang { padding-left: 120px; text-indent: -120px; }
                 .info-label { font-weight: bold; display: inline-block; width: 120px; }
                 .section-title { font-weight: bold; text-decoration: underline; margin-top: 10px; margin-bottom: 5px; }
                 table { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 10px; font-size: 9pt; }
@@ -1351,11 +1350,18 @@ public class TrafficLightsService
         sb.Append($"<div class='info-row'><span class='info-label'>Problem:</span> {System.Net.WebUtility.HtmlEncode(ticket.ProblemType)}</div>");
         sb.Append("</td></tr></table>");
 
-        // Details and Analysis
-        sb.Append($"<div class='info-row hang'><span class='info-label'>Details:</span> {System.Net.WebUtility.HtmlEncode(ticket.Details)}</div>");
+        // Details and Analysis: label column + text column so wrapped text stays beside the label
+        // (same 120px label width as Service Type / Caller / Technician), never under it
+        sb.Append("<table style='border:none;margin:0 0 3px 0;'><tr>");
+        sb.Append("<td style='width:120px;vertical-align:top;border:none;padding:0;font-weight:bold;'>Details:</td>");
+        sb.Append($"<td style='vertical-align:top;border:none;padding:0;'>{System.Net.WebUtility.HtmlEncode(ticket.Details)}</td>");
+        sb.Append("</tr></table>");
         if (!string.IsNullOrEmpty(ticket.Analysis))
         {
-            sb.Append($"<div class='info-row analysis-row hang'><span class='info-label'>Analysis:</span> {System.Net.WebUtility.HtmlEncode(ticket.Analysis)}</div>");
+            sb.Append("<table style='border:none;margin:14px 0 14px 0;'><tr>");
+            sb.Append("<td style='width:120px;vertical-align:top;border:none;padding:0;font-weight:bold;'>Analysis:</td>");
+            sb.Append($"<td style='vertical-align:top;border:none;padding:0;'>{System.Net.WebUtility.HtmlEncode(ticket.Analysis)}</td>");
+            sb.Append("</tr></table>");
         }
 
         // Show Maintenance Fee if Routine, otherwise show line items
