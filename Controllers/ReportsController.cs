@@ -16,13 +16,15 @@ public class ReportsController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly ILogger<ReportsController> _logger;
     private readonly DataLayerBase _dl;
-    public ReportsController(GoogleCloudStorageService gcsService, IHttpClientFactory httpClientFactory, DataLayerBase db, IConfiguration configuration, ILogger<ReportsController> logger)
+    private readonly IServiceScopeFactory _scopeFactory;
+    public ReportsController(IServiceScopeFactory scopeFactory, GoogleCloudStorageService gcsService, IHttpClientFactory httpClientFactory, DataLayerBase db, IConfiguration configuration, ILogger<ReportsController> logger)
     {
         _gcsService = gcsService;
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
         _logger = logger;
         _dl = db;
+        _scopeFactory = scopeFactory;
     }
 
     [HttpPost("create")]
@@ -102,27 +104,33 @@ public class ReportsController : ControllerBase
             }
             report.CreatedByID = user.UserId;
             await OverrideReportAsync(report);
-            if (report.GenerationStatus == "Failed" || report.GenerationStatus == "Uploaded")
+            // Re-run through the in-API generators (same pipeline as the Traffic / Streetlights pages),
+            // updating this same report row. The legacy report service is no longer used here.
+            await UpdateReportAsync(report.ReportID, "In Progress", user.UserId);
+            var reportToRun = report;
+            var runUserId = user.UserId;
+            _ = Task.Run(async () =>
             {
-                await UpdateReportAsync(report.ReportID, "In Progress", user.UserId);
-                List<CustomerDetails> customerDetails = new List<CustomerDetails>();
-                customerDetails.Add(new CustomerDetails() { CustomerName = report.CustomerName, FileName = report.ReportID.ToString(), ReportId = report.ReportID });
-                Task.Run(() => ProcessReportsAsync(customerDetails, report.StartDate, report.EndDate, user.UserId, report.ReportType, report.StrButton));
-            }
-            if (report.GenerationStatus == "Completed")
-            {
-
-                string strStart = $"{report.StartDate.Year}{report.StartDate.Month:00}{report.StartDate.Day:00}_";
-                string strEnd = $"{report.EndDate.Year}{report.EndDate.Month:00}{report.EndDate.Day:00}";
-                string strNewReportFile = $"C:\\DCEG\\Billing\\{report.CustomerName}_{strStart}_{strEnd}.pdf";
-                byte[] pdfBytes = System.IO.File.ReadAllBytes(strNewReportFile);
-                string fileName = $"{report.CustomerName}_{strStart}_{strEnd}.pdf";
-                string invoiceType = report.ReportType == "Traffic" ? "trafficlights" : "streetlights";
-                string gcsPath = InvoicePathBuilder.BuildInvoicePath(report.CustomerName, invoiceType, report.StartDate, fileName);
-                string gcsUrl = await _gcsService.UploadFileAsync(pdfBytes, gcsPath);
-                await UpdateReportAsync(report.ReportID, "Uploaded", user.UserId, gcsUrl: gcsUrl);
-
-            }
+                try
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    if (string.Equals(reportToRun.ReportType, "Traffic", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var c = ActivatorUtilities.CreateInstance<Pdf.TrafficLightsInvoiceController>(scope.ServiceProvider);
+                        await c.RegenerateAsync(reportToRun, runUserId);
+                    }
+                    else
+                    {
+                        var c = ActivatorUtilities.CreateInstance<Pdf.StreetlightsInvoiceController>(scope.ServiceProvider);
+                        await c.RegenerateAsync(reportToRun, runUserId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Retry failed for reportId: {ReportId}", reportToRun.ReportID);
+                    await UpdateReportAsync(reportToRun.ReportID, "Failed", runUserId, message: $"{ex.GetType().Name}: {ex.Message}");
+                }
+            });
             return Ok(new { message = "Retrying" });
         }
         catch (Exception ex)
