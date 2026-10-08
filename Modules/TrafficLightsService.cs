@@ -1430,8 +1430,8 @@ public class TrafficLightsService
             <style>
                 body { font-family: 'Liberation Sans', Arial, sans-serif; font-size: 11pt; margin: 0; padding: 0; }
                 .report-title { font-size: 16pt; font-weight: bold; text-align: center; margin-bottom: 5px; }
-                .customer-name { font-size: 14pt; font-weight: bold; text-align: center; margin-bottom: 3px; }
-                .date-range { font-size: 12pt; font-weight: bold; text-align: center; margin-bottom: 25px; }
+                .customer-name { font-size: 14pt; font-weight: bold; text-align: center; margin-bottom: 30px; }
+                .date-range { font-size: 12pt; font-weight: bold; text-align: center; margin-bottom: 3px; }
                 .total-section { margin-bottom: 20px; }
                 .total-row { margin-bottom: 8px; }
                 .total-label { display: inline-block; width: 180px; font-weight: bold; }
